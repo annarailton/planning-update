@@ -3,6 +3,7 @@ import { ReactNode } from "react";
 import { Outlet } from "react-router-dom";
 import { motion } from "motion/react";
 import LandingPage from "../../../pages/LandingPage";
+import { config } from "../../../shared/lib/config";
 
 interface ProtectedRouteProps {
   children?: ReactNode;
@@ -13,6 +14,10 @@ export default function ProtectedRoute({
   children,
   fallback,
 }: ProtectedRouteProps) {
+  if (!config.isClerkConfigured) {
+    return children || <Outlet />;
+  }
+
   const { isLoaded, isSignedIn } = useAuth();
 
   if (!isLoaded) {

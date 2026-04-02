@@ -25,6 +25,7 @@ interface AppConfig {
 
   // Auth
   clerkPublishableKey: string;
+  isClerkConfigured: boolean;
 
   // Feature flags
   debug: boolean;
@@ -55,6 +56,15 @@ function getLogLevel(): LogLevel {
   return import.meta.env.DEV ? "debug" : "error";
 }
 
+function isConfiguredClerkKey(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  return trimmed !== "pk_test_your_clerk_publishable_key_here";
+}
+
 export const config: AppConfig = {
   // Environment
   isDev: import.meta.env.DEV,
@@ -66,6 +76,9 @@ export const config: AppConfig = {
 
   // Auth
   clerkPublishableKey: getEnv("VITE_CLERK_PUBLISHABLE_KEY", ""),
+  isClerkConfigured: isConfiguredClerkKey(
+    getEnv("VITE_CLERK_PUBLISHABLE_KEY", ""),
+  ),
 
   // Feature flags
   debug: getBoolEnv("VITE_DEBUG", import.meta.env.DEV),

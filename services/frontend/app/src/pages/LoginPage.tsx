@@ -3,8 +3,42 @@ import { ConnectivityScene } from "../shared/components/landing/ConnectivityScen
 import { motion } from "motion/react";
 import { Sparkles, ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
+import { config } from "../shared/lib/config";
 
 export function LoginPage() {
+  if (!config.isClerkConfigured) {
+    return (
+      <div className="relative min-h-screen bg-gray-50 dark:bg-slate-950 flex items-center justify-center overflow-hidden transition-colors duration-300">
+        <div className="absolute inset-0 opacity-50">
+          <ConnectivityScene />
+        </div>
+
+        <div className="relative z-10 w-full max-w-xl rounded-3xl border border-amber-200 bg-white/90 p-8 shadow-2xl">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-gray-500 hover:text-gray-900 mb-8 transition-colors text-sm font-medium"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Home
+          </Link>
+
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/20 mb-4">
+            <Sparkles className="w-6 h-6 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Clerk is not configured
+          </h1>
+          <p className="text-gray-600 leading-7">
+            This local environment is running in no-auth mode because
+            `VITE_CLERK_PUBLISHABLE_KEY` is still set to the example value.
+            Add a real Clerk publishable key to enable sign-in, or keep using
+            the app locally without authentication.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen bg-gray-50 dark:bg-slate-950 flex items-center justify-center overflow-hidden transition-colors duration-300">
       {/* 3D Background */}

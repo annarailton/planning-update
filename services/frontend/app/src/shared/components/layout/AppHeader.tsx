@@ -11,13 +11,45 @@ import {
   Radio,
   Workflow,
   Layers,
+  Map,
 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { ThemeToggle } from "../ThemeToggle";
 import { useFeatures } from "../../providers/FeaturesProvider";
+import { config } from "../../lib/config";
+
+function HeaderUserSection() {
+  const { user } = useUser();
+
+  return (
+    <div className="flex items-center gap-3 pl-2">
+      <div className="text-right hidden sm:block">
+        <div className="text-sm font-semibold text-gray-900 dark:text-white">
+          {user?.fullName || "User"}
+        </div>
+        <div className="text-xs text-gray-500 dark:text-gray-500">Pro Plan</div>
+      </div>
+      <UserButton
+        appearance={{
+          elements: {
+            avatarBox:
+              "w-10 h-10 border-2 border-gray-200 dark:border-white/10 ring-2 ring-indigo-500/20",
+          },
+        }}
+      />
+    </div>
+  );
+}
+
+function HeaderDevModeBadge() {
+  return (
+    <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-800">
+      No auth
+    </div>
+  );
+}
 
 export function AppHeader() {
-  const { user } = useUser();
   const { isRedisEnabled, isTemporalEnabled } = useFeatures();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -38,6 +70,7 @@ export function AppHeader() {
       { name: "Agent", path: "/agent", icon: Bot },
       { name: "Realtime", path: "/realtime", icon: Radio },
       { name: "Files", path: "/file-upload", icon: Upload },
+      { name: "Planning", path: "/planning-applications", icon: Map },
     ];
 
     // Only show Jobs if Redis is enabled
@@ -111,24 +144,11 @@ export function AppHeader() {
             </div>
             <div className="h-8 w-[1px] bg-gray-200 dark:bg-white/10 hidden md:block" />
 
-            <div className="flex items-center gap-3 pl-2">
-              <div className="text-right hidden sm:block">
-                <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {user?.fullName || "User"}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-500">
-                  Pro Plan
-                </div>
-              </div>
-              <UserButton
-                appearance={{
-                  elements: {
-                    avatarBox:
-                      "w-10 h-10 border-2 border-gray-200 dark:border-white/10 ring-2 ring-indigo-500/20",
-                  },
-                }}
-              />
-            </div>
+            {config.isClerkConfigured ? (
+              <HeaderUserSection />
+            ) : (
+              <HeaderDevModeBadge />
+            )}
 
             {/* Mobile Menu Button */}
             <button

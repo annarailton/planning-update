@@ -8,6 +8,7 @@ import HomePage from "./pages/HomePage";
 import ComponentShowcasePage from "./pages/ComponentShowcasePage";
 import { FileUploadPage } from "./pages/FileUploadPage";
 import { LoginPage } from "./pages/LoginPage";
+import { PlanningApplicationsPage } from "./pages/PlanningApplicationsPage";
 import ClerkProvider from "./shared/providers/ClerkProvider";
 import ProtectedRoute from "./features/auth/components/ProtectedRoute";
 import AuthToastHandler from "./features/auth/components/AuthToastHandler";
@@ -18,6 +19,7 @@ import {
   FeaturesProvider,
   useFeatures,
 } from "./shared/providers/FeaturesProvider";
+import { config } from "./shared/lib/config";
 
 // Lazy load feature-flagged pages
 const JobsPage = lazy(() =>
@@ -25,15 +27,19 @@ const JobsPage = lazy(() =>
 );
 const TemporalJobPage = lazy(() => import("./pages/TemporalJobPage"));
 
-function AppContent() {
-  // Initialize API client with Clerk authentication
+function ApiClientBootstrap() {
   useApiClient();
+  return null;
+}
+
+function AppContent() {
   const { isRedisEnabled, isTemporalEnabled } = useFeatures();
 
   return (
     <BrowserRouter
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
+      {config.isClerkConfigured ? <ApiClientBootstrap /> : null}
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route element={<ProtectedRoute />}>
@@ -44,6 +50,10 @@ function AppContent() {
             <Route path="/agent" element={<AgentPage />} />
             <Route path="/realtime" element={<RealtimeAgentPage />} />
             <Route path="/file-upload" element={<FileUploadPage />} />
+            <Route
+              path="/planning-applications"
+              element={<PlanningApplicationsPage />}
+            />
             {/* Feature-flagged routes */}
             <Route
               path="/jobs"

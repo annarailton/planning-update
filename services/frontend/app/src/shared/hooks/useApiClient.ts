@@ -1,6 +1,7 @@
 import { useAuth } from "@clerk/clerk-react";
 import { useEffect } from "react";
 import { apiClient } from "../lib/api-client";
+import { config } from "../lib/config";
 
 /**
  * Hook to initialize API client with Clerk authentication
@@ -10,6 +11,11 @@ export function useApiClient() {
   const { getToken } = useAuth();
 
   useEffect(() => {
+    if (!config.isClerkConfigured) {
+      apiClient.setClerkTokenGetter(async () => null);
+      return;
+    }
+
     // Set up Clerk token getter for the API client
     apiClient.setClerkTokenGetter(async () => {
       try {

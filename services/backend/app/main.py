@@ -5,26 +5,27 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import APIRouter, FastAPI
 from fastapi.responses import RedirectResponse
+from packages.db import close_database
 
 from core.config import get_settings
 from core.database import init_database
 from core.exception_handlers import setup_exception_handlers
 from core.logging import get_logger
-from packages.db import close_database
-from core.openapi import custom_openapi, OPENAPI_TAGS
+from core.openapi import OPENAPI_TAGS, custom_openapi
 from middleware.logging import setup_logging_middleware
 
 # Core routers (always available)
 from routers import (
+    agent,
+    buckets,
+    features,
+    files,
     health,
+    llm,
+    planning,
+    realtime_agent,
     users,
     webhooks,
-    files,
-    buckets,
-    agent,
-    realtime_agent,
-    llm,
-    features,
 )
 
 logger = get_logger(__name__)
@@ -104,6 +105,7 @@ def create_app() -> FastAPI:
     api_router.include_router(buckets.router)
     api_router.include_router(agent.router, prefix="/agent")
     api_router.include_router(realtime_agent.router, prefix="/realtime")
+    api_router.include_router(planning.router)
 
     # ─────────────────────────────────────────────────────────────────────────
     # Feature: Redis/Jobs (conditional)

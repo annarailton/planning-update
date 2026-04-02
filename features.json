@@ -1,7 +1,7 @@
 {
   "app": {
-    "name": "",
-    "id": ""
+    "name": "planning-update",
+    "id": "planning-update-16p6"
   },
   "infrastructure": {
     "redis": false,

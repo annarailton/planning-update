@@ -1,0 +1,36 @@
+{
+  "skill_name": "fullstack-feature",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Build a full-stack feature for managing team members. Each member has a name, email, role (admin/member/viewer), and active status. Need CRUD on backend and a list/create UI on frontend.",
+      "expected_output": "Coordinated backend API and frontend feature module with types, service, hooks, and components",
+      "files": [],
+      "expectations": [
+        "Backend follows api-endpoint skill pattern: schema + service + router + test",
+        "Frontend types at features/team-members/types/ match backend response shape",
+        "Frontend service uses apiClient from @/shared/lib/api-client, not raw fetch",
+        "Frontend hooks use AbortController for cleanup in useEffect",
+        "Frontend uses logger from @/shared/lib/logger, not console.log",
+        "Feature has an index.ts that exports public API",
+        "Backend and frontend types are consistent (same field names, matching nullability)",
+        "Loading states are handled in components"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Create a notifications feature. Backend: store notifications per user with read/unread status. Frontend: show notification list with mark-as-read functionality.",
+      "expected_output": "Full-stack notification system with backend persistence and frontend reactivity",
+      "files": [],
+      "expectations": [
+        "Backend service has mark_as_read method that updates notification status",
+        "Backend uses soft delete pattern, not hard delete",
+        "Frontend has separate hooks for list, mutations, and single notification",
+        "Frontend service file is in features/notifications/services/",
+        "Components are in features/notifications/components/",
+        "Uses typed interfaces, no 'any' types",
+        "Backend router uses Annotated dependency injection pattern"
+      ]
+    }
+  ]
+}

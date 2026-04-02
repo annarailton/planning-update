@@ -1,0 +1,32 @@
+{
+  "skill_name": "sync-configs",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just updated the api-endpoint skill in .claude/skills/api-endpoint/SKILL.md. Check if the Codex side is in sync and fix any drift.",
+      "expected_output": "Compares .claude/skills/api-endpoint/SKILL.md with .agents/skills/api-endpoint/SKILL.md, reports differences, fixes drift",
+      "files": [],
+      "expectations": [
+        "Reads both .claude/skills/api-endpoint/SKILL.md and .agents/skills/api-endpoint/SKILL.md",
+        "Strips frontmatter before comparing body content",
+        "Ignores Claude-specific frontmatter fields (disable-model-invocation, user-invocable, allowed-tools)",
+        "Reports whether the files are in sync or out of sync with specific details",
+        "If drift exists, updates the out-of-date side; if already in sync, reports no changes needed"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Run a full sync check across all config files",
+      "expected_output": "Comprehensive comparison of all file pairs in the dual-config system",
+      "files": [],
+      "expectations": [
+        "Checks skills pairs (.claude/skills vs .agents/skills)",
+        "Checks service docs (CLAUDE.md vs AGENTS.md for each service)",
+        "Checks agent files (.claude/agents/*.md vs .codex/agents/*.toml)",
+        "Checks commands-to-skills mapping (.claude/commands/*.md vs .agents/skills/*/SKILL.md)",
+        "Reports a summary of in-sync and out-of-sync pairs",
+        "Uses /cmd vs $cmd translation when comparing root CLAUDE.md and AGENTS.md"
+      ]
+    }
+  ]
+}

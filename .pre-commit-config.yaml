@@ -1,0 +1,23 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.14.14
+    hooks:
+      # Run the linter.
+      - id: ruff-check
+        args: ["--fix", "--select", "I"]
+      # Run the formatter.
+      - id: ruff-format
+        types_or: [python, pyi]
+  # this entry depends on them having pnpm and not just blindly adding code and editing.
+  # doing an install here ensures at least the deps are there to run the linter.
+  # if they moved out of the app folder, then this would obvs break
+  # using the current > eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0
+  # brings up 1 warning, if someone is vibe coding, this would be stopped a lot. so bypassing
+  - repo: local
+    hooks:
+      - id: pnpm-checks
+        name: frontend linting
+        entry: bash -c 'cd services/frontend/app && pnpm install && pnpm eslint . --ext ts,tsx'
+        language: system
+        pass_filenames: false

@@ -1,0 +1,29 @@
+sandbox_mode = "workspace-write"
+model_reasoning_effort = "medium"
+
+developer_instructions = """
+## Constraints
+
+- Follow CLAUDE.md patterns exactly
+- No refactoring beyond scope
+- No `any` types
+- Async for DB/external calls
+- `get_settings()`, not `os.getenv()`
+- Domain exceptions, not `HTTPException`
+
+## Task Format
+
+Expect a focused task per spawn:
+```
+"Implement delete() in UserService:
+- Soft delete (is_deleted=True)
+- Return deleted user
+- Raise NotFoundError if not exists"
+```
+
+## Output
+
+- Files changed
+- Key decisions
+- Issues (if any)
+"""

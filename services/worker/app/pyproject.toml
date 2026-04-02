@@ -1,0 +1,75 @@
+[project]
+name = "worker"
+version = "0.1.0"
+description = "Background Job Worker Service"
+readme = "README.md"
+requires-python = ">=3.12"
+
+# Core dependencies - worker always needs redis
+dependencies = [
+    # Core FastAPI (for health endpoints)
+    "fastapi[standard]>=0.115.11",
+    "uvicorn[standard]>=0.34.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.10.6",
+    "pydantic-settings>=2.7.0",
+    "python-dotenv>=1.0.1",
+    # Database
+    "sqlalchemy>=2.0.0",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+    # Redis (always needed for worker)
+    "redis>=7.1.0",
+    # Utilities
+    "tenacity>=8.2.0",
+]
+
+[project.optional-dependencies]
+# Feature: Temporal (durable workflows)
+temporal = ["temporalio>=1.9.0"]
+
+# Feature: LLM Providers (for LLM-based job handlers)
+llm-openai = ["openai>=2.14.0"]
+llm-anthropic = ["anthropic>=0.75.0"]
+llm-gemini = [
+    "google-genai>=1.56.0",
+    "google-api-core>=2.0.0",
+]
+
+# All optional features
+all = ["worker[temporal,llm-openai,llm-anthropic,llm-gemini]"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.25.3",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.9.10",
+    "black>=24.12.1",
+    "mypy>=1.14.1",
+    # Include all optional deps in dev
+    "temporalio>=1.9.0",
+    "openai>=2.14.0",
+    "anthropic>=0.75.0",
+    "google-genai>=1.56.0",
+    "google-api-core>=2.0.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

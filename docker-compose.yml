@@ -1,0 +1,195 @@
+# Development Docker Compose Configuration
+# For production, services are deployed to Cloud Run via CI/CD
+#
+# Profiles:
+#   (default) - Backend + Frontend only
+#   redis     - Adds Redis, Redis Insight (without worker)
+#   worker    - Adds Worker service (requires redis profile)
+#   temporal  - Adds Temporal, Temporal UI, Temporal DB (includes redis profile)
+#
+# Usage:
+#   pnpm dev                              # Default: backend + frontend
+#   pnpm dev:all                          # All services
+#   docker compose --profile redis up     # With Redis only
+#   docker compose --profile redis --profile worker up  # With Redis + Worker
+#   docker compose --profile temporal up  # With Temporal (includes redis)
+
+services:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Core Services (always run)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./services/backend/Dockerfile.dev
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - ./services/backend/app:/app
+      - ./packages:/packages
+    env_file:
+      - ./environment/.env.backend
+    environment:
+      - PYTHONPATH=/
+      - UV_LINK_MODE=copy
+      # Feature flags (read from features.json via dev.sh)
+      - FEATURE_REDIS=${FEATURE_REDIS:-false}
+      - FEATURE_TEMPORAL=${FEATURE_TEMPORAL:-false}
+      - FEATURE_WORKER=${FEATURE_WORKER:-false}
+      # Redis URL (only used if FEATURE_REDIS=true)
+      - REDIS_URL=redis://redis:6379
+      # Temporal settings (only used if FEATURE_TEMPORAL=true)
+      - TEMPORAL_ADDRESS=${TEMPORAL_ADDRESS:-temporal:7233}
+      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+      - TEMPORAL_TASK_QUEUE=${TEMPORAL_TASK_QUEUE:-default-tasks}
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: ./services/frontend/Dockerfile.dev
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./services/frontend/app/src:/app/src
+      - ./services/frontend/app/public:/app/public
+      - ./services/frontend/app/index.html:/app/index.html
+      - ./services/frontend/app/vite.config.ts:/app/vite.config.ts
+      - ./services/frontend/app/tsconfig.json:/app/tsconfig.json
+      - /app/node_modules
+    env_file:
+      - ./environment/.env.frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Redis Services (profile: redis, temporal)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  redis:
+    profiles: ["redis", "temporal"]
+    image: redis:8.4-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  redis-insight:
+    profiles: ["redis", "temporal"]
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    networks:
+      - app-network
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    profiles: ["worker", "temporal"]
+    build:
+      context: .
+      dockerfile: ./services/worker/Dockerfile.dev
+    ports:
+      - "${WORKER_PORT:-8081}:8081"
+    volumes:
+      - ./services/worker/app:/app
+      - ./packages:/packages
+    env_file:
+      - ./environment/.env.backend
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PYTHONPATH=/
+      - UV_LINK_MODE=copy
+      # Feature flags (from dev.sh)
+      - FEATURE_TEMPORAL=${FEATURE_TEMPORAL:-false}
+      # Temporal settings (only used if FEATURE_TEMPORAL=true)
+      - TEMPORAL_ADDRESS=${TEMPORAL_ADDRESS:-temporal:7233}
+      - TEMPORAL_NAMESPACE=${TEMPORAL_NAMESPACE:-default}
+      - TEMPORAL_TASK_QUEUE=${TEMPORAL_TASK_QUEUE:-default-tasks}
+    networks:
+      - app-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Temporal Services (profile: temporal)
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  temporal-db:
+    profiles: ["temporal"]
+    image: postgres:16-alpine
+    ports:
+      - "${TEMPORAL_DB_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_DB: temporal
+    volumes:
+      - temporal-db-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  temporal:
+    profiles: ["temporal"]
+    image: temporalio/auto-setup:latest
+    ports:
+      - "${TEMPORAL_PORT:-7233}:7233"
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=temporal-db
+    networks:
+      - app-network
+    depends_on:
+      temporal-db:
+        condition: service_healthy
+
+  temporal-ui:
+    profiles: ["temporal"]
+    image: temporalio/ui:latest
+    ports:
+      - "${TEMPORAL_UI_PORT:-8233}:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    networks:
+      - app-network
+    depends_on:
+      - temporal
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+  temporal-db-data:

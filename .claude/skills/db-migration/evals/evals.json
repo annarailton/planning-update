@@ -1,0 +1,45 @@
+{
+  "skill_name": "db-migration",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Add a new 'comments' table. Each comment belongs to a user and a post, has a body text field, and supports soft delete.",
+      "expected_output": "New SQLAlchemy model with proper relationships, exported and registered for Alembic",
+      "files": [],
+      "expectations": [
+        "Model file created at packages/db/models/comment.py",
+        "Model extends BaseModel from packages.db.base",
+        "Includes is_deleted: Mapped[bool] = mapped_column(Boolean, default=False) for soft delete",
+        "Has ForeignKey references to users.id and posts.id",
+        "Model is exported in packages/db/__init__.py",
+        "Model is imported in packages/db/alembic/env.py",
+        "Instructions include running pnpm db:create with a descriptive message"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Add a 'status' enum column to the existing files model. Statuses: pending, processing, available, failed.",
+      "expected_output": "Enum defined in constants.py, model updated, migration created",
+      "files": [],
+      "expectations": [
+        "Enum class defined in packages/db/constants.py, not inline in the model",
+        "Enum inherits from (str, Enum)",
+        "Model update uses Mapped[FileStatus] with proper default",
+        "Migration command uses pnpm db:create, not raw alembic",
+        "Does not hard-code enum values as plain strings"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Add a JSON metadata column and a nullable description field to the buckets model",
+      "expected_output": "Model fields added with proper SQLAlchemy types",
+      "files": [],
+      "expectations": [
+        "Uses sqlalchemy JSON type for metadata column with default=dict",
+        "Description field is Mapped[str | None] with nullable=True",
+        "Migration is created via pnpm db:create command",
+        "Does not modify BaseModel timestamps or id fields"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "app": {
+    "name": "",
+    "id": ""
+  },
+  "infrastructure": {
+    "redis": false,
+    "worker": false,
+    "temporal": false
+  },
+  "llm": {
+    "openai": true,
+    "anthropic": false,
+    "gemini": false
+  },
+  "integrations": {
+    "langfuse": false
+  }
+}

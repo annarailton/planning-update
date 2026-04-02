@@ -1,0 +1,110 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "FastAPI Backend Service"
+readme = "README.md"
+requires-python = ">=3.12"
+
+# Core dependencies - always installed (lean base image)
+dependencies = [
+    # Core FastAPI
+    "fastapi[standard]>=0.115.11",
+    "uvicorn[standard]>=0.34.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.10.6",
+    "pydantic-settings>=2.7.0",
+    "python-dotenv>=1.0.1",
+    # Database
+    "sqlalchemy>=2.0.0",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+    "psycopg2-binary>=2.9.10",
+    # Authentication
+    "clerk-backend-api>=3.0.3",
+    "pyjwt[crypto]>=2.10.1",
+    # Utilities
+    "pyhumps>=3.8.0",
+    "pyyaml>=6.0.2",
+    "tenacity>=9.0.0",  # Retry logic for LLM packages
+    # Storage
+    "google-cloud-storage>=3.3.0",
+]
+
+[project.optional-dependencies]
+# Feature: Redis (jobs, queues, pub/sub)
+redis = ["redis>=7.1.0"]
+
+# Feature: Temporal (durable workflows)
+temporal = ["temporalio>=1.9.0"]
+
+# Feature: LLM Providers
+llm-openai = [
+    "openai>=2.14.0",
+    "openai-agents[sqlalchemy]>=0.4.2",
+]
+llm-anthropic = ["anthropic>=0.75.0"]
+llm-gemini = ["google-genai>=1.56.0"]
+
+# Feature: LLM Observability
+langfuse = ["langfuse>=3.0.0"]
+
+# All optional features (for development)
+all = [
+    "backend[redis,temporal,llm-openai,llm-anthropic,llm-gemini,langfuse]",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.25.3",
+    "pytest-cov>=4.1.0",
+    "httpx>=0.28.1",
+    "aiosqlite>=0.20.0",
+    "ruff>=0.9.10",
+    "black>=24.12.1",
+    "mypy>=1.14.1",
+    "types-PyYAML>=6.0.12",
+    "types-requests>=2.31.0",
+    "ipython>=8.31.0",
+    "testcontainers>=4.12.0",
+    "pytest-mock>=3.14.1",
+    "eralchemy2>=1.4.1",
+    # Include all optional deps in dev for full testing
+    "redis>=7.1.0",
+    "temporalio>=1.9.0",
+    "openai>=2.14.0",
+    "openai-agents[sqlalchemy]>=0.4.2",
+    "anthropic>=0.75.0",
+    "google-genai>=1.56.0",
+    "langfuse>=3.0.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+no_implicit_optional = false
+check_untyped_defs = false
+warn_return_any = false
+warn_unused_ignores = false
+disable_error_code = ["method-assign", "attr-defined", "import-untyped"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

@@ -1,0 +1,1255 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Setup Wizard - Fullstack Template</title>
+    <style>
+      :root {
+        --bg: #0a0a0a;
+        --bg-card: #141414;
+        --bg-input: #1a1a1a;
+        --border: #2a2a2a;
+        --text: #fafafa;
+        --text-muted: #888;
+        --primary: #3b82f6;
+        --primary-hover: #2563eb;
+        --success: #22c55e;
+        --warning: #eab308;
+        --error: #ef4444;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        line-height: 1.5;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      header h1 {
+        font-size: 1.75rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+
+      header p {
+        color: var(--text-muted);
+      }
+
+      /* Accordion Styles */
+      .accordion {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .accordion-item {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: border-color 0.2s;
+      }
+
+      .accordion-item.expanded {
+        border-color: var(--primary);
+      }
+
+      .accordion-item.complete {
+        border-color: var(--success);
+      }
+
+      .accordion-item.error {
+        border-color: var(--error);
+      }
+
+      .accordion-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.2s;
+      }
+
+      .accordion-header:hover {
+        background: var(--bg-input);
+      }
+
+      .accordion-status {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+        font-weight: 600;
+        flex-shrink: 0;
+        background: var(--border);
+        color: var(--text-muted);
+      }
+
+      .accordion-item.complete .accordion-status {
+        background: var(--success);
+        color: white;
+      }
+
+      .accordion-item.error .accordion-status {
+        background: var(--error);
+        color: white;
+      }
+
+      .accordion-item.expanded .accordion-status {
+        background: var(--primary);
+        color: white;
+      }
+
+      .accordion-title {
+        flex: 1;
+      }
+
+      .accordion-title h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 0.125rem;
+      }
+
+      .accordion-title p {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      .accordion-chevron {
+        color: var(--text-muted);
+        transition: transform 0.2s;
+      }
+
+      .accordion-item.expanded .accordion-chevron {
+        transform: rotate(180deg);
+      }
+
+      .accordion-content {
+        display: none;
+        padding: 0 1.25rem 1.25rem;
+        border-top: 1px solid var(--border);
+      }
+
+      .accordion-item.expanded .accordion-content {
+        display: block;
+      }
+
+      .accordion-body {
+        padding-top: 1rem;
+      }
+
+      /* Form elements */
+      .form-group {
+        margin-bottom: 1rem;
+      }
+
+      label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 0.75rem;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        font-size: 0.875rem;
+        transition: border-color 0.2s;
+      }
+
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: var(--primary);
+      }
+
+      input::placeholder {
+        color: var(--text-muted);
+      }
+
+      .input-hint {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+      }
+
+      .input-hint a {
+        color: var(--primary);
+      }
+
+      /* Buttons */
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+      }
+
+      .btn-primary {
+        background: var(--primary);
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: var(--primary-hover);
+      }
+
+      .btn-primary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .btn-secondary {
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        color: var(--text);
+      }
+
+      .btn-secondary:hover {
+        border-color: var(--text-muted);
+      }
+
+      .btn-sm {
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
+      }
+
+      /* Check list */
+      .check-list {
+        list-style: none;
+      }
+
+      .check-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: var(--bg-input);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+      }
+
+      .check-icon {
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+      }
+
+      .check-icon.success {
+        background: var(--success);
+      }
+      .check-icon.error {
+        background: var(--error);
+      }
+      .check-icon.pending {
+        background: var(--border);
+        animation: pulse 1.5s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .check-details {
+        flex: 1;
+      }
+      .check-name {
+        font-weight: 500;
+      }
+      .check-version {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      /* Alerts */
+      .alert {
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        margin-bottom: 1rem;
+      }
+
+      .alert-warning {
+        background: rgba(234, 179, 8, 0.1);
+        border: 1px solid var(--warning);
+        color: var(--warning);
+      }
+
+      .alert-error {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid var(--error);
+        color: var(--error);
+      }
+
+      .alert-success {
+        background: rgba(34, 197, 94, 0.1);
+        border: 1px solid var(--success);
+        color: var(--success);
+      }
+
+      .alert-info {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid var(--primary);
+        color: var(--primary);
+      }
+
+      /* Code blocks */
+      code {
+        background: var(--bg-input);
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-family: "SF Mono", Consolas, monospace;
+      }
+
+      .code-block {
+        background: var(--bg-input);
+        padding: 1rem;
+        border-radius: 8px;
+        font-family: "SF Mono", Consolas, monospace;
+        font-size: 0.8rem;
+        overflow-x: auto;
+        margin: 0.5rem 0;
+      }
+
+      /* Loading */
+      .loading {
+        display: inline-block;
+        width: 1rem;
+        height: 1rem;
+        border: 2px solid var(--border);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Footer actions */
+      .footer-actions {
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .footer-status {
+        flex: 1;
+        font-size: 0.875rem;
+        color: var(--text-muted);
+      }
+
+      /* Status output */
+      #setup-output {
+        margin-top: 1rem;
+      }
+
+      .status-line {
+        display: flex;
+        gap: 0.5rem;
+        margin: 0.5rem 0;
+      }
+
+      /* Hidden */
+      .hidden {
+        display: none !important;
+      }
+
+      /* Optional badge */
+      .badge-optional {
+        font-size: 0.65rem;
+        background: var(--border);
+        color: var(--text-muted);
+        padding: 0.125rem 0.5rem;
+        border-radius: 4px;
+        margin-left: 0.5rem;
+        font-weight: normal;
+      }
+
+      /* Feature toggles */
+      .feature-toggle {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        background: var(--bg-input);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+      }
+
+      .toggle {
+        position: relative;
+        width: 48px;
+        height: 24px;
+        flex-shrink: 0;
+      }
+
+      .toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--border);
+        border-radius: 24px;
+        transition: 0.2s;
+      }
+
+      .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background: white;
+        border-radius: 50%;
+        transition: 0.2s;
+      }
+
+      .toggle input:checked + .toggle-slider {
+        background: var(--success);
+      }
+
+      .toggle input:checked + .toggle-slider:before {
+        transform: translateX(24px);
+      }
+
+      .feature-info {
+        flex: 1;
+      }
+
+      .feature-info strong {
+        display: block;
+        margin-bottom: 0.25rem;
+      }
+
+      .feature-info p {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin: 0;
+      }
+
+      .feature-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem;
+      }
+
+      .feature-checkbox input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--primary);
+      }
+
+      .feature-checkbox label {
+        display: inline;
+        font-weight: normal;
+        margin-bottom: 0;
+      }
+
+      .section-subtitle {
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin: 1rem 0 0.5rem;
+        color: var(--text);
+      }
+
+      .section-subtitle:first-child {
+        margin-top: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Fullstack Template Setup</h1>
+        <p>Configure your development environment</p>
+      </header>
+
+      <div class="accordion" id="accordion">
+        <!-- 1. Prerequisites -->
+        <div class="accordion-item" data-section="prereqs">
+          <div class="accordion-header" onclick="toggleAccordion('prereqs')">
+            <div class="accordion-status">1</div>
+            <div class="accordion-title">
+              <h3>Prerequisites</h3>
+              <p>Required tools and CLI authentication</p>
+            </div>
+            <div class="accordion-chevron">▼</div>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <ul class="check-list" id="prereqs-list">
+                <li class="check-item">
+                  <div class="check-icon pending"></div>
+                  <div class="check-details">
+                    <div class="check-name">Checking...</div>
+                  </div>
+                </li>
+              </ul>
+              <div id="prereqs-warning" class="alert alert-warning hidden">
+                Some required tools are missing. Install them before continuing.
+              </div>
+              <div id="gcloud-auth-warning" class="alert alert-warning hidden">
+                <strong>gcloud not authenticated.</strong> Run
+                <code>gcloud auth login</code> first.
+              </div>
+              <button class="btn btn-sm btn-secondary" onclick="checkPrereqs()">
+                Re-check
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Repository -->
+        <div class="accordion-item" data-section="repo">
+          <div class="accordion-header" onclick="toggleAccordion('repo')">
+            <div class="accordion-status">2</div>
+            <div class="accordion-title">
+              <h3>Repository</h3>
+              <p>GitHub repository and app name</p>
+            </div>
+            <div class="accordion-chevron">▼</div>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div id="repo-detected" class="alert alert-success hidden">
+                Detected: <strong id="repo-name-display"></strong>
+              </div>
+              <div class="form-group">
+                <label>GitHub Repository URL</label>
+                <input
+                  type="text"
+                  id="repo-url"
+                  placeholder="https://github.com/owner/repo"
+                  onchange="saveField('repo')"
+                />
+              </div>
+              <div class="form-group">
+                <label>App Name</label>
+                <input
+                  type="text"
+                  id="app-name"
+                  placeholder="my-app"
+                  onchange="saveField('repo')"
+                />
+                <div class="input-hint">
+                  Used for GCP resources (max 30 chars, lowercase, hyphens only)
+                </div>
+              </div>
+              <div
+                id="app-id-container"
+                class="alert alert-info hidden"
+                style="margin-top: 1rem"
+              >
+                <strong>Redis Namespace:</strong>
+                <code id="app-id-display"></code>
+                <div
+                  style="font-size: 0.8rem; margin-top: 0.25rem; opacity: 0.8"
+                >
+                  This unique ID isolates your app's data in shared Redis
+                  instances
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Features -->
+        <div class="accordion-item" data-section="features">
+          <div class="accordion-header" onclick="toggleAccordion('features')">
+            <div class="accordion-status">3</div>
+            <div class="accordion-title">
+              <h3>Features</h3>
+              <p>Select optional services and LLM providers</p>
+            </div>
+            <div class="accordion-chevron">▼</div>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="alert alert-info">
+                Features control which services run locally and are deployed to
+                production.
+              </div>
+
+              <!-- Infrastructure Features -->
+              <div class="section-subtitle">Infrastructure</div>
+              <div class="feature-toggle">
+                <label class="toggle">
+                  <input
+                    type="checkbox"
+                    id="feature-redis"
+                    onchange="updateFeature('infrastructure.redis')"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="feature-info">
+                  <strong>Redis</strong>
+                  <p>Caching, pub/sub, session storage</p>
+                </div>
+              </div>
+
+              <div class="feature-toggle">
+                <label class="toggle">
+                  <input
+                    type="checkbox"
+                    id="feature-worker"
+                    onchange="updateFeature('infrastructure.worker')"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="feature-info">
+                  <strong>Worker</strong>
+                  <p>Background job processing (requires Redis)</p>
+                </div>
+              </div>
+
+              <div class="feature-toggle">
+                <label class="toggle">
+                  <input
+                    type="checkbox"
+                    id="feature-temporal"
+                    onchange="updateFeature('infrastructure.temporal')"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="feature-info">
+                  <strong>Temporal</strong>
+                  <p>Durable workflow orchestration (requires Redis)</p>
+                </div>
+              </div>
+
+              <!-- LLM Providers -->
+              <div class="section-subtitle">LLM Providers</div>
+              <div id="llm-warning" class="alert alert-warning hidden">
+                At least one LLM provider is required. Enable one below.
+              </div>
+
+              <div class="feature-checkbox">
+                <input
+                  type="checkbox"
+                  id="feature-llm-openai"
+                  checked
+                  onchange="updateFeature('llm.openai')"
+                />
+                <label for="feature-llm-openai">OpenAI (GPT-5, GPT-4o)</label>
+              </div>
+
+              <div class="feature-checkbox">
+                <input
+                  type="checkbox"
+                  id="feature-llm-anthropic"
+                  onchange="updateFeature('llm.anthropic')"
+                />
+                <label for="feature-llm-anthropic"
+                  >Anthropic (Claude Sonnet, Opus)</label
+                >
+              </div>
+
+              <div class="feature-checkbox">
+                <input
+                  type="checkbox"
+                  id="feature-llm-gemini"
+                  onchange="updateFeature('llm.gemini')"
+                />
+                <label for="feature-llm-gemini">Google Gemini</label>
+              </div>
+
+              <!-- Integrations -->
+              <div class="section-subtitle">Integrations</div>
+              <div class="feature-toggle">
+                <label class="toggle">
+                  <input
+                    type="checkbox"
+                    id="feature-langfuse"
+                    onchange="updateFeature('integrations.langfuse')"
+                  />
+                  <span class="toggle-slider"></span>
+                </label>
+                <div class="feature-info">
+                  <strong>Langfuse</strong>
+                  <p>LLM observability and tracing</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. GCP -->
+        <div class="accordion-item" data-section="gcp">
+          <div class="accordion-header" onclick="toggleAccordion('gcp')">
+            <div class="accordion-status">4</div>
+            <div class="accordion-title">
+              <h3>Google Cloud Platform</h3>
+              <p>GCP project for hosting</p>
+            </div>
+            <div class="accordion-chevron">▼</div>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="form-group">
+                <label>GCP Project ID</label>
+                <input
+                  type="text"
+                  id="gcp-project"
+                  placeholder="my-project-123"
+                  value="development-403721"
+                  onchange="saveField('gcp')"
+                />
+                <div class="input-hint">
+                  Default: development-403721 (Tomoro)
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Region</label>
+                <select
+                  id="gcp-region"
+                  onchange="updateTfstateBucket(); updateTemporalRegion(); saveField('gcp')"
+                >
+                  <option value="asia-southeast1">
+                    asia-southeast1 (Singapore)
+                  </option>
+                  <option value="australia-southeast1">
+                    australia-southeast1 (Sydney)
+                  </option>
+                  <option value="europe-west2">europe-west2 (London)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Terraform State Bucket</label>
+                <input
+                  type="text"
+                  id="tfstate-bucket"
+                  placeholder="my-project-tfstate"
+                  onchange="saveField('gcp')"
+                />
+                <div class="input-hint">
+                  Auto-filled based on region (editable)
+                </div>
+              </div>
+              <div id="gcp-validation"></div>
+              <button
+                class="btn btn-sm btn-secondary"
+                id="gcp-validate-btn"
+                onclick="validateGcp()"
+              >
+                Validate Access
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Service Account -->
+        <div class="accordion-item" data-section="serviceaccount">
+          <div
+            class="accordion-header"
+            onclick="toggleAccordion('serviceaccount')"
+          >
+            <div class="accordion-status">5</div>
+            <div class="accordion-title">
+              <h3>GCP Service Account</h3>
+              <p>Credentials for CI/CD and GCS access</p>
+            </div>
+            <div class="accordion-chevron">▼</div>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="alert alert-info">
+                A service account key is required for GitHub Actions deployments
+                and GCS signed URLs.
+              </div>
+              <div class="alert alert-warning">
+                <strong>Prerequisite:</strong> Run
+                <code>gcloud auth login</code> first if you want to create a
+                service account or key automatically.
+              </div>
+
+              <div class="form-group">
+                <label>How do you want to configure the service account?</label>
+                <select id="sa-method" onchange="updateSaMethod()">
+                  <option value="existing">
+                    Use existing key (paste JSON)
+                  </option>
+                  <option value="create-key">
+                    Create new key from existing SA email
+                  </option>
+                  <option value="create">Create new service account</option>
+                  <option value="file">Load from file path</option>
+                </select>
+              </div>
+
+              <!-- Existing key option -->
+              <div id="sa-existing" class="sa-method-section">
+                <div class="form-group">
+                  <label>Service Account Key JSON</label>
+                  <textarea
+                    id="sa-key-json"
+                    rows="6"
+                    placeholder='{"type":"service_account","project_id":"...","private_key":"..."}'
+                    onchange="saveField('serviceaccount')"
+                    style="
+                      width: 100%;
+                      padding: 0.75rem;
+                      background: var(--bg-input);
+                      border: 1px solid var(--border);
+                      border-radius: 8px;
+                      color: var(--text);
+                      font-size: 0.8rem;
+                      font-family: monospace;
+                      resize: vertical;
+                    "
+                  ></textarea>
+                  <div class="input-hint">
+                    Get from
+                    <a
+                      href="https://console.cloud.google.com/iam-admin/serviceaccounts"
+                      target="_blank"
+                      >GCP Console</a
+                    >
+                    → Service Accounts → Keys → Add Key → JSON
+                  </div>
+                </div>
+              </div>
+
+              <!-- Create key from existing SA email -->
+              <div id="sa-create-key" class="sa-method-section hidden">
+                <div class="form-group">
+                  <label>Existing Service Account Email</label>
+                  <input
+                    type="text"
+                    id="sa-email"
+                    placeholder="my-app-deployer@project-id.iam.gserviceaccount.com"
+                    onchange="saveField('serviceaccount')"
+                  />
+                  <div class="input-hint">
+                    The full email address of an existing service account
+                  </div>
+                </div>
+                <div id="sa-create-key-status"></div>
+                <button
+                  class="btn btn-sm btn-secondary"
+                  id="sa-create-key-btn"
+                  onclick="createKeyForExistingSa()"
+                >
+                  Create New Key
+                </button>
+              </div>
+
+              <!-- Create new option -->
+              <div id="sa-create" class="sa-method-section hidden">
+                <div class="form-group">
+                  <label>Service Account Name</label>
+                  <input
+                    type="text"
+                    id="sa-name"
+                    placeholder="my-app-deployer"
+                    onchange="saveField('serviceaccount')"
+                  />
+                  <div class="input-hint">
+                    Will create:
+                    <code id="sa-email-preview"
+                      >-deployer@project.iam.gserviceaccount.com</code
+                    >
+                  </div>
+                </div>
+                <div id="sa-create-status"></div>
+                <button
+                  class="btn btn-sm btn-secondary"
+                  id="sa-create-btn"
+                  onclick="createServiceAccount()"
+                >
+                  Create Service Account
+                </button>
+              </div>
+
+              <!-- File path option -->
+              <div id="sa-file" class="sa-method-section hidden">
+                <div class="form-group">
+                  <label>Path to Service Account Key File</label>
+                  <input
+                    type="text"
+                    id="sa-file-path"
+                    placeholder="/path/to/service-account-key.json"
+                    onchange="loadSaFromFile()"
+                  />
+                  <div class="input-hint">
+                    Absolute path to your JSON key file
+                  </div>
+                </div>
+                <div id="sa-file-status"></div>
+              </div>
+
+              <div
+                id="sa-validation"
+                class="hidden"
+                style="margin-top: 1rem"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. Database -->
+        <div class="accordion-item" data-section="database">
+          <div class="accordion-header" onclick="toggleAccordion('database')">
+            <div class="accordion-status">6</div>
+            <div class="accordion-title">
+              <h3>Database (Neon)</h3>
+              <p>PostgreSQL connection strings</p>
+            </div>
+            <div class="accordion-chevron">▼</div>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="alert alert-info">
+                Create a project at
+                <a href="https://console.neon.tech" target="_blank"
+                  >console.neon.tech</a
+                >
+              </div>
+              <div class="form-group">
+                <label>Production DATABASE_URL</label>
+                <input
+                  type="text"
+                  id="db-url-prod"
+                  placeholder="postgresql://user:pass@ep-xxx.neon.tech/neondb"
+                  onchange="saveField('database')"
+                />
+              </div>
+              <div class="form-group">
+                <label>Staging DATABASE_URL</label>
+                <input
+                  type="text"
+                  id="db-url-staging"
+                  placeholder="postgresql://user:pass@ep-xxx.neon.tech/neondb"
+                  onchange="saveField('database')"
+                />
+                <div class="input-hint">Create a "staging" branch in Neon</div>
+              </div>
+              <div class="form-group">
+                <label>Neon API Key</label>
+                <input
+                  type="text"
+                  id="neon-api-key"
+                  placeholder="neon_api_key_..."
+                  oninput="saveField('database')"
+                  onchange="saveField('database')"
+                />
+              </div>
+              <div class="form-group">
+                <label>Neon Project ID</label>
+                <input
+                  type="text"
+                  id="neon-project-id"
+                  placeholder="holy-cake-50805013"
+                  oninput="saveField('database')"
+                  onchange="saveField('database')"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. Auth -->
+        <div class="accordion-item" data-section="auth">
+          <div class="accordion-header" onclick="toggleAccordion('auth')">
+            <div class="accordion-status">7</div>
+            <div class="accordion-title">
+              <h3>Authentication (Clerk)</h3>
+              <p>User authentication keys</p>
+            </div>
+            <div class="accordion-chevron">▼</div>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="alert alert-info">
+                Create an app at
+                <a href="https://dashboard.clerk.com" target="_blank"
+                  >dashboard.clerk.com</a
+                >
+              </div>
+              <div class="form-group">
+                <label>CLERK_SECRET_KEY</label>
+                <input
+                  type="text"
+                  id="clerk-secret"
+                  placeholder="sk_live_..."
+                  onchange="saveField('auth')"
+                />
+              </div>
+              <div class="form-group">
+                <label>VITE_CLERK_PUBLISHABLE_KEY</label>
+                <input
+                  type="text"
+                  id="clerk-publishable"
+                  placeholder="pk_live_..."
+                  onchange="saveField('auth')"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8. AI -->
+        <div class="accordion-item" data-section="ai">
+          <div class="accordion-header" onclick="toggleAccordion('ai')">
+            <div class="accordion-status">8</div>
+            <div class="accordion-title">
+              <h3>AI Services</h3>
+              <p>LLM provider API keys</p>
+            </div>
+            <div class="accordion-chevron">▼</div>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div id="ai-no-providers" class="alert alert-warning hidden">
+                No LLM providers enabled. Enable at least one in the Features
+                section.
+              </div>
+              <div id="ai-openai-group" class="form-group">
+                <label>OpenAI API Key</label>
+                <input
+                  type="text"
+                  id="openai-key"
+                  placeholder="sk-..."
+                  onchange="saveField('ai')"
+                />
+                <div class="input-hint">
+                  <a href="https://platform.openai.com/api-keys" target="_blank"
+                    >Get API key</a
+                  >
+                </div>
+              </div>
+              <div id="ai-anthropic-group" class="form-group">
+                <label>Anthropic API Key</label>
+                <input
+                  type="text"
+                  id="anthropic-key"
+                  placeholder="sk-ant-..."
+                  onchange="saveField('ai')"
+                />
+                <div class="input-hint">
+                  <a
+                    href="https://console.anthropic.com/settings/keys"
+                    target="_blank"
+                    >Get API key</a
+                  >
+                </div>
+              </div>
+              <div id="ai-gemini-group" class="form-group">
+                <label>Gemini API Key</label>
+                <input
+                  type="text"
+                  id="gemini-key"
+                  placeholder=""
+                  onchange="saveField('ai')"
+                />
+                <div class="input-hint">
+                  <a href="https://aistudio.google.com/apikey" target="_blank"
+                    >Get API key</a
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 9. Langfuse -->
+        <div class="accordion-item" data-section="langfuse">
+          <div class="accordion-header" onclick="toggleAccordion('langfuse')">
+            <div class="accordion-status">9</div>
+            <div class="accordion-title">
+              <h3>Langfuse <span class="badge-optional">optional</span></h3>
+              <p>LLM observability and tracing</p>
+            </div>
+            <div class="accordion-chevron">▼</div>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="alert alert-info">
+                <strong>Langfuse</strong> - LLM observability. All LLM calls
+                auto-traced when configured.
+              </div>
+              <div class="form-group">
+                <label>Langfuse Public Key</label>
+                <input
+                  type="text"
+                  id="langfuse-public-key"
+                  placeholder="pk-lf-..."
+                  onchange="saveField('langfuse')"
+                />
+                <div class="input-hint">
+                  <a href="https://cloud.langfuse.com" target="_blank"
+                    >cloud.langfuse.com</a
+                  >
+                  → Project → Settings → API Keys
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Langfuse Secret Key</label>
+                <input
+                  type="text"
+                  id="langfuse-secret-key"
+                  placeholder="sk-lf-..."
+                  onchange="saveField('langfuse')"
+                />
+              </div>
+              <div class="form-group">
+                <label>Langfuse Host</label>
+                <select id="langfuse-host" onchange="saveField('langfuse')">
+                  <option value="https://cloud.langfuse.com" selected>
+                    EU (cloud.langfuse.com)
+                  </option>
+                  <option value="https://us.cloud.langfuse.com">
+                    US (us.cloud.langfuse.com)
+                  </option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 10. Temporal -->
+        <div class="accordion-item" data-section="temporal">
+          <div class="accordion-header" onclick="toggleAccordion('temporal')">
+            <div class="accordion-status">10</div>
+            <div class="accordion-title">
+              <h3>
+                Temporal Cloud <span class="badge-optional">optional</span>
+              </h3>
+              <p>Durable workflow orchestration</p>
+            </div>
+            <div class="accordion-chevron">▼</div>
+          </div>
+          <div class="accordion-content">
+            <div class="accordion-body">
+              <div class="alert alert-info">
+                <strong>Temporal Cloud</strong> - Durable workflow
+                orchestration. Namespace is auto-provisioned via Terraform when
+                API key is provided.
+              </div>
+              <div class="form-group">
+                <label>Temporal API Key</label>
+                <input
+                  type="text"
+                  id="temporal-api-key"
+                  placeholder="eyJhbG..."
+                  onchange="saveField('temporal')"
+                />
+                <div class="input-hint">
+                  <a href="https://cloud.temporal.io" target="_blank"
+                    >cloud.temporal.io</a
+                  >
+                  → Settings → API Keys
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Temporal Region</label>
+                <select id="temporal-region" onchange="saveField('temporal')">
+                  <option value="aws-ap-southeast-1">
+                    aws-ap-southeast-1 (Singapore)
+                  </option>
+                  <option value="aws-ap-southeast-2">
+                    aws-ap-southeast-2 (Sydney)
+                  </option>
+                  <option value="aws-us-east-1">
+                    aws-us-east-1 (N. Virginia)
+                  </option>
+                  <option value="aws-us-west-2">aws-us-west-2 (Oregon)</option>
+                  <option value="aws-eu-west-1">aws-eu-west-1 (Ireland)</option>
+                  <option value="aws-eu-west-2">aws-eu-west-2 (London)</option>
+                  <option value="aws-eu-central-1">
+                    aws-eu-central-1 (Frankfurt)
+                  </option>
+                </select>
+                <div class="input-hint">
+                  Region for Temporal Cloud namespace (auto-selected based on
+                  GCP region)
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer-actions">
+        <div class="footer-status" id="footer-status">
+          Fill in required sections above
+        </div>
+        <button class="btn btn-secondary" onclick="resetWizard()">Reset</button>
+        <button
+          class="btn btn-primary"
+          id="complete-btn"
+          onclick="completeSetup()"
+        >
+          Complete Setup
+        </button>
+      </div>
+
+      <div id="setup-output"></div>
+    </div>
+
+    <script src="wizard.js"></script>
+  </body>
+</html>

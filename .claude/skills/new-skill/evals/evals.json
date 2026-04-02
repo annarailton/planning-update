@@ -1,0 +1,32 @@
+{
+  "skill_name": "new-skill",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Create a skill for generating Terraform modules. It should auto-load when the user mentions infrastructure, terraform, or cloud provisioning. Should be both auto and manually invocable.",
+      "expected_output": "SKILL.md with proper frontmatter, description with trigger keywords, and step-by-step instructions",
+      "files": [],
+      "expectations": [
+        "SKILL.md created at .claude/skills/terraform-module/SKILL.md",
+        "Frontmatter has name, description, disable-model-invocation: false, user-invocable: true",
+        "Description includes trigger keywords: terraform, infrastructure, cloud provisioning",
+        "Body includes code templates with file paths",
+        "Shows file structure as ASCII tree",
+        "Skill registered in root CLAUDE.md skills table"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Make a skill for our deploy process. It should only be user-invocable (not auto-triggered) since deploys are destructive. Takes an environment argument.",
+      "expected_output": "Manual-only skill with argument support",
+      "files": [],
+      "expectations": [
+        "Frontmatter has disable-model-invocation: true",
+        "Frontmatter has user-invocable: true",
+        "Uses $ARGUMENTS or $0 substitution for environment parameter",
+        "argument-hint field is set in frontmatter",
+        "Body includes safety checks or confirmation steps since it's destructive"
+      ]
+    }
+  ]
+}

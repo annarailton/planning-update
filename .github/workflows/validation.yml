@@ -1,0 +1,218 @@
+name: ~Validation
+
+on:
+  pull_request:
+    branches: [main, staging]
+    paths:
+      - "services/**"
+      - "packages/**"
+      - "features.json"
+      - ".github/workflows/**"
+
+concurrency:
+  group: pr-${{ github.event.number }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Load Feature Flags
+  # ─────────────────────────────────────────────────────────────────────────────
+  config:
+    name: Load Features
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      redis: ${{ steps.features.outputs.redis }}
+      worker: ${{ steps.features.outputs.worker }}
+      temporal: ${{ steps.features.outputs.temporal }}
+      llm_openai: ${{ steps.features.outputs.llm_openai }}
+      llm_anthropic: ${{ steps.features.outputs.llm_anthropic }}
+      llm_gemini: ${{ steps.features.outputs.llm_gemini }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse features.json
+        id: features
+        run: ./scripts/features.sh --github >> $GITHUB_OUTPUT
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Backend Validation
+  # ─────────────────────────────────────────────────────────────────────────────
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install graphviz
+        run: sudo apt-get install -y graphviz graphviz-dev
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('services/backend/app/uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
+
+      - name: Install dependencies
+        working-directory: services/backend/app
+        run: uv sync
+
+      - name: Lint
+        working-directory: services/backend/app
+        run: |
+          uv run ruff check .
+          uv run black --check .
+
+      - name: Type check
+        working-directory: services/backend/app
+        continue-on-error: true # Don't block on type errors
+        run: uv run mypy . --ignore-missing-imports
+
+      - name: Test
+        working-directory: services/backend/app
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          GCP_PROJECT_ID: test-project
+          GCS_BUCKET_NAME: test-bucket
+          STORAGE_ENV_PREFIX: test
+        run: uv run pytest tests/ -v
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Frontend Validation
+  # ─────────────────────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "pnpm"
+          cache-dependency-path: services/frontend/app/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: services/frontend/app
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        working-directory: services/frontend/app
+        run: pnpm lint
+
+      - name: Type check
+        working-directory: services/frontend/app
+        run: pnpm tsc --noEmit
+
+      - name: Test
+        working-directory: services/frontend/app
+        run: pnpm test:run
+
+      - name: Build
+        working-directory: services/frontend/app
+        run: pnpm build
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Docker Build Verification
+  # ─────────────────────────────────────────────────────────────────────────────
+  docker:
+    name: Docker Builds
+    needs: [config]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/backend/Dockerfile
+          push: false
+          tags: backend-test:latest
+          build-args: |
+            FEATURE_REDIS=${{ needs.config.outputs.redis }}
+            FEATURE_TEMPORAL=${{ needs.config.outputs.temporal }}
+            FEATURE_LLM_OPENAI=${{ needs.config.outputs.llm_openai }}
+            FEATURE_LLM_ANTHROPIC=${{ needs.config.outputs.llm_anthropic }}
+            FEATURE_LLM_GEMINI=${{ needs.config.outputs.llm_gemini }}
+          cache-from: type=gha,scope=validation-backend
+          cache-to: type=gha,mode=max,scope=validation-backend
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/frontend/Dockerfile
+          push: false
+          tags: frontend-test:latest
+          cache-from: type=gha,scope=validation-frontend
+          cache-to: type=gha,mode=max,scope=validation-frontend
+
+      - name: Build worker image
+        if: needs.config.outputs.worker == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/worker/Dockerfile
+          push: false
+          tags: worker-test:latest
+          build-args: |
+            FEATURE_TEMPORAL=${{ needs.config.outputs.temporal }}
+          cache-from: type=gha,scope=validation-worker
+          cache-to: type=gha,mode=max,scope=validation-worker
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Summary
+  # ─────────────────────────────────────────────────────────────────────────────
+  summary:
+    name: Summary
+    needs: [config, backend, frontend, docker]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        run: |
+          echo "## PR Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend | ${{ needs.backend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ needs.frontend.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Builds | ${{ needs.docker.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Features Enabled" >> $GITHUB_STEP_SUMMARY
+          echo "- Redis: ${{ needs.config.outputs.redis }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Worker: ${{ needs.config.outputs.worker }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Temporal: ${{ needs.config.outputs.temporal }}" >> $GITHUB_STEP_SUMMARY
+
+          # Fail if any required check failed
+          if [[ "${{ needs.backend.result }}" != "success" || \
+                "${{ needs.frontend.result }}" != "success" || \
+                "${{ needs.docker.result }}" != "success" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Some checks failed. Please fix before merging.**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**All checks passed!**" >> $GITHUB_STEP_SUMMARY

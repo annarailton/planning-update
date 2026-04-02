@@ -1,0 +1,75 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+*.pyc
+__pycache__/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Environment files
+.env
+.env.*
+!.env.*.example
+environment/.env.*
+!environment/.env.*.example
+environment/dev/.env.*
+!environment/dev/.env.*.example
+
+# Setup tracking
+.setup-progress
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfplan
+*.tfvars
+!*.tfvars.example
+gcp.json
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# Testing
+coverage/
+.coverage
+.pytest_cache/
+*.cover
+
+# Build artifacts
+*.tar.gz
+*.zip
+
+# Generated files
+docs/erd.png
+docs/erd.svg
+docs/erd.pdf
+
+# Setup files
+.google-credentials.json
+.setup-secrets.sh
+
+# Claude Code local files
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Skill eval results (generated outputs)
+.claude/skills/*/evals/results/
+
+# Codex CLI local files
+.codex/config.local.toml
+.sumi/
+environment/.env.backend

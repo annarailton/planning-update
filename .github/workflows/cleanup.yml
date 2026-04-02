@@ -1,0 +1,328 @@
+name: Cleanup Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Confirm destroy by typing the chosen branch name (must match chosen branch in dropdown)"
+        required: true
+        type: string
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    outputs:
+      worker: ${{ steps.features.outputs.worker }}
+      redis: ${{ steps.features.outputs.redis }}
+      temporal: ${{ steps.features.outputs.temporal }}
+      redis_key_prefix: ${{ steps.features.outputs.redis_key_prefix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate environment
+        run: |
+          ENV="${{ inputs.environment }}"
+          BRANCH="${{ github.ref_name }}"
+          if [ -z "$ENV" ]; then
+            echo "::error::Environment name is required"
+            exit 1
+          fi
+          if [ "$ENV" != "$BRANCH" ]; then
+            echo "::error::Environment '$ENV' does not match branch '$BRANCH'. Select the correct branch in 'Use workflow from'."
+            exit 1
+          fi
+          if [ "$ENV" = "prod" ]; then
+            echo "::warning::Destroying PRODUCTION environment!"
+          fi
+          echo "Destroying environment: $ENV"
+
+      - name: Parse features.json
+        id: features
+        run: ./scripts/features.sh --github >> $GITHUB_OUTPUT
+
+  destroy-frontend:
+    name: Destroy Frontend
+    needs: [validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp.json
+      TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+      TF_VAR_environment: ${{ inputs.environment }}
+      TF_VAR_image_url: "placeholder:destroy"
+      TF_VAR_app_name: ${{ vars.APP_NAME || 'app' }}
+      TF_VAR_region: ${{ vars.GCP_REGION || 'asia-southeast1' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Export GCP credentials
+        run: echo '${{ secrets.GOOGLE_CREDENTIALS }}' > gcp.json
+
+      - name: Terraform Destroy
+        working-directory: terraform/services/frontend
+        continue-on-error: true
+        run: |
+          terraform init -upgrade \
+            -backend-config="bucket=${{ secrets.TFSTATE_BUCKET }}" \
+            -backend-config="prefix=${{ github.event.repository.name }}/services/frontend"
+
+          if terraform workspace select "${{ inputs.environment }}" 2>/dev/null; then
+            terraform destroy -auto-approve -input=false || true
+            terraform workspace select default
+            terraform workspace delete "${{ inputs.environment }}" || true
+          else
+            echo "Workspace ${{ inputs.environment }} does not exist"
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: rm -f gcp.json
+
+  destroy-worker:
+    name: Destroy Worker
+    needs: [validate, destroy-frontend]
+    if: needs.validate.result == 'success' && needs.validate.outputs.worker == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp.json
+      TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+      TF_VAR_environment: ${{ inputs.environment }}
+      TF_VAR_image_url: "placeholder:destroy"
+      TF_VAR_app_name: ${{ vars.APP_NAME || 'app' }}
+      TF_VAR_region: ${{ vars.GCP_REGION || 'asia-southeast1' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Export GCP credentials
+        run: echo '${{ secrets.GOOGLE_CREDENTIALS }}' > gcp.json
+
+      - name: Terraform Destroy
+        working-directory: terraform/services/worker
+        continue-on-error: true
+        run: |
+          terraform init -upgrade \
+            -backend-config="bucket=${{ secrets.TFSTATE_BUCKET }}" \
+            -backend-config="prefix=${{ github.event.repository.name }}/services/worker"
+
+          if terraform workspace select "${{ inputs.environment }}" 2>/dev/null; then
+            terraform destroy -auto-approve -input=false || true
+            terraform workspace select default
+            terraform workspace delete "${{ inputs.environment }}" || true
+          else
+            echo "Workspace ${{ inputs.environment }} does not exist"
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: rm -f gcp.json
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Clean Redis Keys (removes prefixed keys for the environment being destroyed)
+  # ─────────────────────────────────────────────────────────────────────────────
+  cleanup-redis:
+    name: Cleanup Redis Keys
+    needs: [validate, destroy-worker]
+    if: always() && needs.validate.result == 'success' && needs.validate.outputs.redis == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp.json
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Export GCP credentials
+        run: echo '${{ secrets.GOOGLE_CREDENTIALS }}' > gcp.json
+
+      - name: Authenticate to GCP
+        run: gcloud auth activate-service-account --key-file=gcp.json --project="${{ secrets.GCP_PROJECT_ID }}"
+
+      - name: Get Redis URL from Secret Manager
+        id: redis
+        continue-on-error: true
+        run: |
+          ENV="${{ inputs.environment }}"
+          case "$ENV" in
+            prod) SECRET="redis-url-prod" ;;
+            staging) SECRET="redis-url-staging" ;;
+            *) SECRET="redis-url-dev" ;;
+          esac
+
+          REDIS_URL=$(gcloud secrets versions access latest --secret="$SECRET" 2>/dev/null || echo "")
+          if [ -n "$REDIS_URL" ]; then
+            echo "redis_url=$REDIS_URL" >> $GITHUB_OUTPUT
+            echo "Retrieved Redis URL from Secret Manager: $SECRET"
+          else
+            echo "::warning::Could not retrieve Redis URL from Secret Manager ($SECRET)"
+          fi
+
+      - name: Delete prefixed keys
+        if: steps.redis.outputs.redis_url != ''
+        run: |
+          # Install redis-cli
+          sudo apt-get update && sudo apt-get install -y redis-tools
+
+          # Use app ID prefix from features.json (shared Redis Cloud isolation)
+          PREFIX="${{ needs.validate.outputs.redis_key_prefix }}"
+          REDIS_URL="${{ steps.redis.outputs.redis_url }}"
+
+          if [ -z "$PREFIX" ]; then
+            echo "::warning::No Redis key prefix found in features.json. Skipping cleanup."
+            exit 0
+          fi
+
+          echo "Deleting all Redis keys with prefix: ${PREFIX}"
+
+          # Extract host, port, password from URL
+          # Supports: redis[s]://:pass@host:port and redis[s]://user:pass@host:port
+          if [[ "$REDIS_URL" =~ rediss?://([^:]*):([^@]+)@([^:]+):([0-9]+) ]]; then
+            REDIS_PASS="${BASH_REMATCH[2]}"
+            REDIS_HOST="${BASH_REMATCH[3]}"
+            REDIS_PORT="${BASH_REMATCH[4]}"
+
+            # Use --tls for rediss:// URLs
+            TLS_FLAG=""
+            if [[ "$REDIS_URL" =~ ^rediss:// ]]; then
+              TLS_FLAG="--tls"
+            fi
+
+            # Delete keys matching prefix
+            redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASS" --no-auth-warning $TLS_FLAG \
+              --scan --pattern "${PREFIX}*" | \
+              xargs -r redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASS" --no-auth-warning $TLS_FLAG DEL
+
+            echo "Redis keys with prefix '${PREFIX}' deleted"
+          else
+            echo "::warning::Could not parse Redis URL"
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: rm -f gcp.json
+
+  destroy-backend:
+    name: Destroy Backend
+    needs: [validate, destroy-frontend, destroy-worker, cleanup-redis]
+    if: always() && needs.validate.result == 'success' && (needs.cleanup-redis.result == 'success' || needs.cleanup-redis.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp.json
+      TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+      TF_VAR_environment: ${{ inputs.environment }}
+      TF_VAR_image_url: "placeholder:destroy"
+      TF_VAR_app_name: ${{ vars.APP_NAME || 'app' }}
+      TF_VAR_region: ${{ vars.GCP_REGION || 'asia-southeast1' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Export GCP credentials
+        run: echo '${{ secrets.GOOGLE_CREDENTIALS }}' > gcp.json
+
+      - name: Setup Go (for tcld)
+        if: needs.validate.outputs.temporal == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          cache: false
+
+      - name: Delete Temporal Namespace
+        if: needs.validate.outputs.temporal == 'true'
+        continue-on-error: true
+        env:
+          TEMPORAL_CLOUD_API_KEY: ${{ secrets.TEMPORAL_API_KEY }}
+        run: |
+          if [ -z "$TEMPORAL_CLOUD_API_KEY" ]; then
+            echo "No Temporal API key, skipping namespace deletion"
+            exit 0
+          fi
+
+          # Install tcld CLI (build from source - no pre-built binaries available)
+          echo "Installing tcld CLI..."
+          go install github.com/temporalio/tcld/cmd/tcld@latest
+          export PATH="$HOME/go/bin:$PATH"
+
+          # Compute namespace name (must match Terraform's local.temporal_namespace_name)
+          APP_NAME="${{ vars.APP_NAME || 'app' }}"
+          ENV="${{ inputs.environment }}"
+          PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
+
+          # Sanitize app name (prefix if starts with number)
+          [[ "$APP_NAME" =~ ^[0-9] ]] && APP_NAME="app-${APP_NAME}"
+
+          # Sanitize environment
+          SANITIZED_ENV=$(echo "$ENV" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-20)
+
+          # Generate hash suffix
+          HASH_SUFFIX=$(echo -n "${PROJECT_ID}-${{ vars.APP_NAME || 'app' }}" | md5sum | cut -c1-4)
+
+          # Temporal Cloud namespace limit is 39 chars - truncate app name to fit
+          MAX_APP_LEN=$(( 39 - 1 - ${#SANITIZED_ENV} - 1 - 4 ))
+          APP_NAME=$(echo "$APP_NAME" | cut -c1-${MAX_APP_LEN} | sed 's/-$//')
+
+          NAMESPACE_NAME="${APP_NAME}-${SANITIZED_ENV}-${HASH_SUFFIX}"
+
+          # Add go bin to PATH for subsequent commands
+          export PATH="$HOME/go/bin:$PATH"
+
+          # Get account ID from existing namespaces (e.g. "name.xtjkf" -> "xtjkf")
+          ACCOUNT_ID=$(tcld namespace list 2>/dev/null | jq -r '.namespaces[0] // empty' | sed 's/.*\.//')
+
+          if [ -n "$ACCOUNT_ID" ]; then
+            NAMESPACE="${NAMESPACE_NAME}.${ACCOUNT_ID}"
+          else
+            NAMESPACE="${NAMESPACE_NAME}"
+          fi
+
+          echo "Deleting Temporal namespace: $NAMESPACE"
+
+          # Delete namespace via tcld
+          if tcld namespace get --namespace "$NAMESPACE" &>/dev/null; then
+            echo "y" | tcld namespace delete --namespace "$NAMESPACE" \
+              || echo "::warning::Failed to delete namespace"
+          else
+            echo "Namespace does not exist, skipping deletion"
+          fi
+
+      - name: Terraform Destroy
+        working-directory: terraform/services/backend
+        continue-on-error: true
+        run: |
+          terraform init -upgrade \
+            -backend-config="bucket=${{ secrets.TFSTATE_BUCKET }}" \
+            -backend-config="prefix=${{ github.event.repository.name }}/services/backend"
+
+          if terraform workspace select "${{ inputs.environment }}" 2>/dev/null; then
+            terraform destroy -auto-approve -input=false || true
+            terraform workspace select default
+            terraform workspace delete "${{ inputs.environment }}" || true
+          else
+            echo "Workspace ${{ inputs.environment }} does not exist"
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: rm -f gcp.json
+
+  destroy-database:
+    name: Destroy Database Branch
+    needs: [validate, destroy-backend]
+    if: always() && needs.validate.result == 'success' && !failure()
+    uses: ./.github/workflows/_neon.yml
+    with:
+      action: delete
+      branch_name: ${{ inputs.environment }}
+    secrets: inherit

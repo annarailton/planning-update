@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+.next
+coverage
+pnpm-lock.yaml
+*.lock
+*.min.js
+*.min.css
+.claude/
+.codex/
+.agents/

@@ -1,0 +1,33 @@
+{
+  "skill_name": "redis-job",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Create a background job for processing uploaded CSV files. It should parse the CSV, validate rows, and store results. Need progress tracking.",
+      "expected_output": "Handler in worker, enqueue endpoint in backend, frontend progress hook",
+      "files": [],
+      "expectations": [
+        "Handler created at services/worker/app/handlers/ with async function signature (payload, on_progress)",
+        "Handler registered in handlers/__init__.py HANDLERS dict",
+        "Backend service uses JobQueue from packages.redis.queue to create_job",
+        "Backend checks is_redis_enabled before enqueuing",
+        "Progress callbacks report meaningful percentages and messages",
+        "Frontend uses useJobStream hook for real-time progress",
+        "Handler is idempotent (safe to retry)"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Add a background job that sends welcome emails after user signup. Payload includes user_id and email address.",
+      "expected_output": "Simple fire-and-forget job with handler and enqueue logic",
+      "files": [],
+      "expectations": [
+        "Handler function takes payload dict with user_id and email fields",
+        "Uses packages.logging.get_logger, not print or logging.getLogger",
+        "Backend enqueue uses ServiceUnavailableError when Redis not configured",
+        "Return dict from handler includes status field",
+        "Handler registered with descriptive job_type key"
+      ]
+    }
+  ]
+}

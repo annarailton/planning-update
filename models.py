@@ -18,7 +18,15 @@ class ApplicationRef(BaseModel):
     @field_validator("value")
     @classmethod
     def validate_application_id(cls, v: str) -> str:
-        """Validate that the reference matches the expected format."""
+        """Validate that the reference matches the expected format.
+
+        Args:
+            cls: Model class used by Pydantic during validation.
+            v: Raw application reference value to validate.
+
+        Returns:
+            The validated application reference.
+        """
         if not cls.APPLICATION_ID_RE.fullmatch(v):
             raise ValueError(f"Invalid application reference: {v}")
         return v
@@ -31,3 +39,17 @@ class Application(BaseModel):
     proposal: str
     url: str
     week: str
+
+
+class PlanningQuery(BaseModel):
+    """User-facing query options for the weekly list search.
+
+    Input to the scraper.
+    """
+
+    ward_name: str
+    parish_name: str | None = None
+    requested_week: str | None = None
+    fallback_weeks: int = 1
+    strict: bool = False
+    status_mode: ApplicationStatusMode = "validated"

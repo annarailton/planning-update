@@ -1,4 +1,4 @@
-"""Configuration helpers for the Oxford planning scraper."""
+"""Location lookup helpers for the Oxford planning scraper."""
 
 from __future__ import annotations
 

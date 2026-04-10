@@ -19,7 +19,7 @@ dependencies = [
 oxford-weekly = "oxford_weekly_applications:main"
 
 [tool.setuptools]
-py-modules = ["config", "oxford_weekly_applications"]
+py-modules = ["location_lookup", "oxford_weekly_applications"]
 
 [tool.setuptools.data-files]
 "" = ["ward_mappings.json"]

@@ -2,7 +2,7 @@
 
 import pytest
 
-from config import normalize_name, resolve_parish_code, resolve_ward_code
+from location_lookup import normalize_name, resolve_parish_code, resolve_ward_code
 
 
 @pytest.mark.parametrize(

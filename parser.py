@@ -45,6 +45,10 @@ def extract_applications(
 ) -> list[Application]:
     """Extract planning applications from a weekly results page.
 
+    These are short result cards - will need to go into each application page
+    to get full details but we can get a fair amount from the result card
+    themselves.
+
     Args:
         html: Raw HTML returned by the weekly results page.
         week: Week label associated with the HTML response.

@@ -6,7 +6,11 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Tag
 
 from constants import BASE_URL, WEEKLY_LIST_URL
-from models import APPLICATION_ID_RE, Application, ApplicationRef
+from models import (
+    APPLICATION_ID_RE,
+    Application,
+    ApplicationRef,
+)
 
 
 def extract_form_values(html: str) -> tuple[str, list[str]]:
@@ -78,18 +82,69 @@ def extract_applications(
         container = find_result_container(anchor)
         proposal = extract_proposal(container)
         application_url = urljoin(BASE_URL, anchor["href"])
+        container_text = normalize_space(container.get_text("\n", strip=True))
+        address = extract_labeled_value(container_text, "Address") or ""
+        received = extract_labeled_value(container_text, "Received")
+        validated = extract_labeled_value(container_text, "Validated")
+        if received is None or validated is None:
+            continue
 
         applications.append(
             Application(
                 application_ref=ApplicationRef(value=application_id),
                 proposal=proposal,
                 url=application_url,
-                week=week,
+                address=address,
+                received=received,
+                validated=validated,
             )
         )
         seen_ids.add(application_id)
 
     return applications
+
+
+def extract_pagination_urls(html: str, page_url: str) -> list[str]:
+    """Extract additional paginated result URLs from a results page.
+
+    Args:
+        html: Raw HTML returned by the weekly results page.
+        page_url: Final response URL for the current results page.
+
+    Returns:
+        Absolute URLs for additional result pages, excluding the current page.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    pagination_urls: list[str] = []
+    seen_urls: set[str] = set()
+
+    for link in soup.select("p.pager a.page[href]"):
+        absolute_url = urljoin(page_url, link["href"])
+        if absolute_url == page_url or absolute_url in seen_urls:
+            continue
+        seen_urls.add(absolute_url)
+        pagination_urls.append(absolute_url)
+
+    return pagination_urls
+
+
+def extract_important_dates(html: str) -> tuple[str | None, str | None]:
+    """Extract consultation and determination deadlines from the dates tab.
+
+    Args:
+        html: Raw HTML returned by an application's dates tab.
+
+    Returns:
+        A tuple of ``(consultation_deadline, determination_deadline)`` date
+        strings when present.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    values = extract_summary_values(soup)
+
+    return (
+        values.get("standard consultation expiry date"),
+        values.get("determination deadline"),
+    )
 
 
 def extract_search_result_cards(soup: BeautifulSoup, week: str) -> list[Application]:
@@ -110,6 +165,10 @@ def extract_search_result_cards(soup: BeautifulSoup, week: str) -> list[Applicat
             continue
 
         proposal = normalize_space(summary_link.get_text(" ", strip=True))
+        address = ""
+        address_tag = result.select_one("p.address")
+        if address_tag is not None:
+            address = normalize_space(address_tag.get_text(" ", strip=True))
         meta_info = result.select_one("p.metaInfo")
         if meta_info is None:
             continue
@@ -120,16 +179,47 @@ def extract_search_result_cards(soup: BeautifulSoup, week: str) -> list[Applicat
             continue
 
         application_id = reference_match.group(1)
+        received = extract_meta_date(meta_text, "Received")
+        validated = extract_meta_date(meta_text, "Validated")
+        if received is None or validated is None:
+            continue
+        raw_status = extract_meta_value(meta_text, "Status")
         applications.append(
             Application(
                 application_ref=ApplicationRef(value=application_id),
                 proposal=proposal,
                 url=urljoin(BASE_URL, summary_link["href"]),
-                week=week,
+                address=address,
+                received=received,
+                validated=validated,
+                status=raw_status,
             )
         )
 
     return applications
+
+
+def extract_summary_fields(
+    html: str,
+) -> tuple[str | None, str | None, str | None]:
+    """Extract summary-only fields from an application's summary page.
+
+    Args:
+        html: Raw HTML returned by an application's summary page.
+
+    Returns:
+        A tuple of ``(status, decided, decision)`` values when present.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    values = extract_summary_values(soup)
+    if not values:
+        return None, None, None
+
+    status = values.get("status")
+    decided = values.get("decision issued date")
+    decision = values.get("decision")
+
+    return status, decided, decision
 
 
 def extract_summary_application(
@@ -148,9 +238,50 @@ def extract_summary_application(
         A parsed application when the page is an application summary, otherwise
         ``None``.
     """
+    values = extract_summary_values(soup)
+    if not values:
+        return None
+
+    application_id = values.get("reference")
+    proposal = values.get("proposal", "")
+    if application_id is None or not APPLICATION_ID_RE.fullmatch(application_id):
+        return None
+
+    summary_link = soup.select_one("a#tab_summary[href], a#subtab_summary[href]")
+    application_url = page_url or WEEKLY_LIST_URL
+    if summary_link is not None:
+        application_url = urljoin(BASE_URL, summary_link["href"])
+
+    received = values.get("application received")
+    validated = values.get("application validated")
+    if received is None or validated is None:
+        return None
+
+    return Application(
+        application_ref=ApplicationRef(value=application_id),
+        proposal=proposal,
+        url=application_url,
+        address=values.get("address", ""),
+        received=received,
+        validated=validated,
+        decided=values.get("decision issued date"),
+        status=values.get("status"),
+        decision=values.get("decision"),
+    )
+
+
+def extract_summary_values(soup: BeautifulSoup) -> dict[str, str]:
+    """Extract normalized key/value pairs from an application details table.
+
+    Args:
+        soup: Parsed HTML document containing a ``#simpleDetailsTable`` table.
+
+    Returns:
+        A mapping of normalized table labels to their text values.
+    """
     details_table = soup.select_one("#simpleDetailsTable")
     if details_table is None:
-        return None
+        return {}
 
     values: dict[str, str] = {}
     for row in details_table.select("tr"):
@@ -163,22 +294,7 @@ def extract_summary_application(
         if label and value:
             values[label] = value
 
-    application_id = values.get("reference")
-    proposal = values.get("proposal", "")
-    if application_id is None or not APPLICATION_ID_RE.fullmatch(application_id):
-        return None
-
-    summary_link = soup.select_one("a#tab_summary[href], a#subtab_summary[href]")
-    application_url = page_url or WEEKLY_LIST_URL
-    if summary_link is not None:
-        application_url = urljoin(BASE_URL, summary_link["href"])
-
-    return Application(
-        application_ref=ApplicationRef(value=application_id),
-        proposal=proposal,
-        url=application_url,
-        week=week,
-    )
+    return values
 
 
 def find_result_container(anchor: Tag) -> Tag:
@@ -247,3 +363,55 @@ def normalize_space(value: str) -> str:
         The normalized string with repeated whitespace collapsed.
     """
     return " ".join(value.split())
+
+
+def extract_labeled_value(text: str, label: str) -> str | None:
+    """Extract a labeled value from flattened text.
+
+    Args:
+        text: Flattened text containing label/value pairs.
+        label: Label to extract, for example ``Address``.
+
+    Returns:
+        The extracted value if present, otherwise ``None``.
+    """
+    match = re.search(
+        rf"{label}:?\s*(.+?)(?:Address:|Status:|Applicant:|Agent:|Ward:|Parish:|Case Officer:|Received:|Validated:|Decided:|$)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    return normalize_space(match.group(1))
+
+
+def extract_meta_date(meta_text: str, label: str) -> str | None:
+    """Extract a labeled date from search result metadata text.
+
+    Args:
+        meta_text: Flattened metadata text from a result card.
+        label: Metadata label to extract, for example ``Received``.
+
+    Returns:
+        The extracted date string if present, otherwise ``None``.
+    """
+    match = re.search(rf"{label}:\s*(.+?)(?:\s+\|\s+|$)", meta_text)
+    if match is None:
+        return None
+    return normalize_space(match.group(1))
+
+
+def extract_meta_value(meta_text: str, label: str) -> str | None:
+    """Extract a labeled value from search result metadata text.
+
+    Args:
+        meta_text: Flattened metadata text from a result card.
+        label: Metadata label to extract.
+
+    Returns:
+        The extracted value if present, otherwise ``None``.
+    """
+    match = re.search(rf"{label}:\s*(.+?)(?:\s+\|\s+|$)", meta_text)
+    if match is None:
+        return None
+    return normalize_space(match.group(1))

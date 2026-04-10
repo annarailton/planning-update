@@ -16,10 +16,10 @@ dependencies = [
 ]
 
 [project.scripts]
-oxford-weekly = "oxford_weekly_applications:main"
+oxford-weekly = "main:main"
 
 [tool.setuptools]
-py-modules = ["constants", "location_lookup", "models", "oxford_weekly_applications"]
+py-modules = ["constants", "location_lookup", "main", "models", "parser", "query", "scraper"]
 
 [tool.setuptools.data-files]
 "" = ["ward_mappings.json"]

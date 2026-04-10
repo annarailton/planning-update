@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "oxford-planning-update"
 version = "0.1.0"
@@ -11,6 +15,9 @@ dependencies = [
 
 [project.scripts]
 oxford-weekly = "oxford_weekly_applications:main"
+
+[tool.setuptools]
+py-modules = ["oxford_weekly_applications"]
 
 [tool.ruff.lint]
 select = ["I", "D"]

@@ -10,3 +10,12 @@ dependencies = [
 
 [project.scripts]
 oxford-weekly = "oxford_weekly_applications:main"
+
+[tool.ruff.lint]
+select = ["I", "D"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["oxford_weekly_applications"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

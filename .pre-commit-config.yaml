@@ -3,9 +3,9 @@ repos:
     # Ruff version.
     rev: v0.14.14
     hooks:
-      # Run the linter.
+      # Run the linter, including isort-style import ordering and docstrings.
       - id: ruff-check
-        args: ["--fix", "--select", "I"]
+        args: ["--fix", "--select", "I,D"]
       # Run the formatter.
       - id: ruff-format
         types_or: [python, pyi]

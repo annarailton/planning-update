@@ -94,6 +94,8 @@ def main() -> int:
                     "proposal": application.proposal,
                     "url": application.url,
                     "address": application.address,
+                    "ward": application.ward,
+                    "parish": application.parish,
                     "received": application.received.isoformat(),
                     "validated": application.validated.isoformat(),
                     "decided": (

@@ -147,6 +147,21 @@ def extract_important_dates(html: str) -> tuple[str | None, str | None]:
     )
 
 
+def extract_further_information(html: str) -> tuple[str | None, str | None]:
+    """Extract ward and parish values from the further information tab.
+
+    Args:
+        html: Raw HTML returned by an application's further information tab.
+
+    Returns:
+        A tuple of ``(ward, parish)`` values when present.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    values = extract_summary_values(soup)
+
+    return values.get("ward"), values.get("parish")
+
+
 def extract_search_result_cards(soup: BeautifulSoup, week: str) -> list[Application]:
     """Extract applications from standard multi-result search result cards.
 
@@ -280,6 +295,11 @@ def extract_summary_values(soup: BeautifulSoup) -> dict[str, str]:
         A mapping of normalized table labels to their text values.
     """
     details_table = soup.select_one("#simpleDetailsTable")
+    if details_table is None:
+        # Oxford City Council uses #simpleDetailsTable on summary/dates pages, but the
+        # Further Information tab renders an unlabelled table inside .tabcontainer.
+        # We miss info if we don't try and grab tables like this
+        details_table = soup.select_one(".tabcontainer table")
     if details_table is None:
         return {}
 

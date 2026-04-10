@@ -10,6 +10,7 @@ from models import Application, PlanningQuery
 from parser import (
     extract_applications,
     extract_form_values,
+    extract_further_information,
     extract_important_dates,
     extract_pagination_urls,
     extract_summary_fields,
@@ -90,6 +91,21 @@ def build_dates_tab_url(application_url: str) -> str:
     return urlunparse(parsed_url._replace(query=urlencode(query_params, doseq=True)))
 
 
+def build_further_information_tab_url(application_url: str) -> str:
+    """Build the further-information-tab URL for a planning application.
+
+    Args:
+        application_url: Application details URL for a planning application.
+
+    Returns:
+        URL for the application's further information tab.
+    """
+    parsed_url = urlparse(application_url)
+    query_params = parse_qs(parsed_url.query)
+    query_params["activeTab"] = ["details"]
+    return urlunparse(parsed_url._replace(query=urlencode(query_params, doseq=True)))
+
+
 def enrich_application(
     session: requests.Session,
     application: Application,
@@ -101,16 +117,23 @@ def enrich_application(
         application: Parsed application to enrich.
 
     Returns:
-        The application with summary-only fields and important dates populated
-        when available.
+        The application with summary-only fields, further information, and
+        important dates populated when available.
     """
     summary_html, _ = fetch_page(session, application.url)
     status, decided, decision = extract_summary_fields(summary_html)
+    further_information_html, _ = fetch_page(
+        session,
+        build_further_information_tab_url(application.url),
+    )
+    ward, parish = extract_further_information(further_information_html)
     dates_html, _ = fetch_page(session, build_dates_tab_url(application.url))
     consultation_deadline, determination_deadline = extract_important_dates(dates_html)
     return Application.model_validate(
         application.model_dump()
         | {
+            "ward": ward,
+            "parish": parish,
             "status": status,
             "decided": decided,
             "decision": decision,

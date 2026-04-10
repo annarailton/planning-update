@@ -54,6 +54,10 @@ class Application(BaseModel):
     address: str
     received: date
     validated: date
+    # These are found from the application page itself
+    # Not all of these will exist (e.g. "Decision" only appears when there's a decision)
+    ward: str | None = None
+    parish: str | None = None
     decided: date | None = None
     consultation_deadline: date | None = None
     determination_deadline: date | None = None

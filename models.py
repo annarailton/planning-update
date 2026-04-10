@@ -6,6 +6,13 @@ from typing import ClassVar, Literal
 
 from pydantic import BaseModel, field_validator
 
+from location_lookup import (
+    PARISH_CODE_TO_NAME,
+    WARD_CODE_TO_NAME,
+    resolve_parish_code,
+    resolve_ward_code,
+)
+
 ApplicationStatusMode = Literal["validated", "decided"]
 APPLICATION_ID_RE = re.compile(r"\b\d{2}/\d{5}/[A-Z0-9]+\b")
 
@@ -92,3 +99,79 @@ class PlanningQuery(BaseModel):
     fallback_weeks: int = 1
     strict: bool = False
     status_mode: ApplicationStatusMode = "validated"
+
+    def resolve_ward_code(self) -> str:
+        """Resolve the configured ward name to an Oxford ward code.
+
+        Returns:
+            The resolved ward code, or an empty string for all wards.
+        """
+        if self.ward_name is None:
+            return ""
+        return resolve_ward_code(self.ward_name)
+
+    def resolve_parish_code(self) -> str:
+        """Resolve the configured parish name to an Oxford parish code.
+
+        Returns:
+            The resolved parish code, or an empty string for all parishes.
+        """
+        if self.parish_name is None:
+            return ""
+        return resolve_parish_code(self.parish_name)
+
+    def resolved_ward_name(self) -> str:
+        """Return the canonical human-readable ward name for the query.
+
+        Returns:
+            The canonical ward name, or ``All wards`` when no ward is set.
+        """
+        ward_code = self.resolve_ward_code()
+        if not ward_code:
+            return "All wards"
+        return WARD_CODE_TO_NAME[ward_code]
+
+    def resolved_parish_name(self) -> str:
+        """Return the canonical human-readable parish name for the query.
+
+        Returns:
+            The canonical parish name, or ``All parishes`` when no parish is set.
+        """
+        parish_code = self.resolve_parish_code()
+        if not parish_code:
+            return "All parishes"
+        return PARISH_CODE_TO_NAME[parish_code]
+
+    def candidate_weeks(self, available_weeks: list[str]) -> list[str]:
+        """Return the ordered week values this query should try.
+
+        Args:
+            available_weeks: Week labels available from the weekly-list form.
+
+        Returns:
+            The ordered week labels to query.
+        """
+        if self.requested_week is not None:
+            return [self.requested_week]
+        return available_weeks[: max(1, self.fallback_weeks + 1)]
+
+    def build_search_payload(self, *, csrf_token: str, week: str) -> dict[str, str]:
+        """Build the weekly-list form payload for a single query attempt.
+
+        Args:
+            csrf_token: CSRF token extracted from the weekly-list form.
+            week: Exact week label from the weekly-list dropdown.
+
+        Returns:
+            Form payload for a single weekly-list request.
+        """
+        return {
+            "_csrf": csrf_token,
+            "searchCriteria.parish": self.resolve_parish_code(),
+            "searchCriteria.ward": self.resolve_ward_code(),
+            "week": week,
+            "dateType": (
+                "DC_Decided" if self.status_mode == "decided" else "DC_Validated"
+            ),
+            "searchType": "Application",
+        }

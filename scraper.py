@@ -1,18 +1,11 @@
 """HTTP and orchestration logic for the Oxford planning application scraper."""
 
 import logging
-from typing import Iterable
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
 
 from constants import DEFAULT_TIMEOUT_SECONDS, RESULTS_URL, WEEKLY_LIST_URL
-from location_lookup import (
-    PARISH_CODE_TO_NAME,
-    WARD_CODE_TO_NAME,
-    resolve_parish_code,
-    resolve_ward_code,
-)
 from models import Application, PlanningQuery
 from parser import (
     extract_applications,
@@ -21,7 +14,6 @@ from parser import (
     extract_pagination_urls,
     extract_summary_fields,
 )
-from query import build_search_payload
 
 logger = logging.getLogger(__name__)
 
@@ -43,32 +35,22 @@ def fetch_form(session: requests.Session) -> tuple[str, list[str]]:
 def fetch_results_page(
     session: requests.Session,
     *,
+    query: PlanningQuery,
     csrf_token: str,
     week: str,
-    ward_code: str,
-    parish_code: str = "",
-    status_mode: str = "validated",
 ) -> tuple[str, str]:
     """Submit the weekly-list search form for a single week.
 
     Args:
         session: HTTP session used to request the Oxford planning site.
+        query: User-facing query options for the weekly list search.
         csrf_token: CSRF token extracted from the weekly-list form.
         week: Exact week label from the weekly-list dropdown.
-        ward_code: Ward code submitted to the Oxford weekly-list form.
-        parish_code: Optional parish code submitted to the Oxford weekly-list form.
-        status_mode: Which weekly-list toggle to use: ``validated`` or ``decided``.
 
     Returns:
         A tuple containing the HTML body and final response URL.
     """
-    payload = build_search_payload(
-        csrf_token=csrf_token,
-        week=week,
-        ward_code=ward_code,
-        parish_code=parish_code,
-        status_mode=status_mode,
-    )
+    payload = query.build_search_payload(csrf_token=csrf_token, week=week)
     response = session.post(
         RESULTS_URL,
         data=payload,
@@ -150,34 +132,17 @@ def fetch_latest_applications(query: PlanningQuery) -> list[Application]:
     session = requests.Session()
     session.headers.update({"User-Agent": "planning-update/0.1"})
 
-    ward_code = ""
-    resolved_ward_name = "All wards"
-    if query.ward_name:
-        ward_code = resolve_ward_code(query.ward_name)
-        resolved_ward_name = WARD_CODE_TO_NAME[ward_code]
-
-    parish_code = ""
-    resolved_parish_name = "All parishes"
-    if query.parish_name:
-        parish_code = resolve_parish_code(query.parish_name)
-        resolved_parish_name = PARISH_CODE_TO_NAME[parish_code]
-
     csrf_token, weeks = fetch_form(session)
-
-    candidate_weeks: Iterable[str]
-    if query.requested_week is not None:
-        candidate_weeks = [query.requested_week]
-    else:
-        candidate_weeks = weeks[: max(1, query.fallback_weeks + 1)]
+    candidate_weeks = query.candidate_weeks(weeks)
+    resolved_ward_name = query.resolved_ward_name()
+    resolved_parish_name = query.resolved_parish_name()
 
     for index, week in enumerate(candidate_weeks):
         html, page_url = fetch_results_page(
             session,
+            query=query,
             csrf_token=csrf_token,
             week=week,
-            ward_code=ward_code,
-            parish_code=parish_code,
-            status_mode=query.status_mode,
         )
         applications = extract_applications(html, week, page_url)
         for pagination_url in extract_pagination_urls(html, page_url):

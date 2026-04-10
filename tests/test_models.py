@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from models import Application, ApplicationRef
+from models import Application, ApplicationRef, PlanningQuery
 
 
 @pytest.mark.parametrize(
@@ -64,3 +64,40 @@ def test_application_model_validate_parses_updated_date_strings() -> None:
     )
 
     assert updated.decided == date(2026, 3, 14)
+
+
+def test_planning_query_build_search_payload_uses_resolved_codes() -> None:
+    """PlanningQuery should serialize itself to an Oxford search payload."""
+    query = PlanningQuery(
+        ward_name="churchill",
+        parish_name="littlemore",
+        status_mode="decided",
+    )
+
+    assert query.build_search_payload(
+        csrf_token="token-123",
+        week="30 Mar 2026",
+    ) == {
+        "_csrf": "token-123",
+        "searchCriteria.parish": "LPC",
+        "searchCriteria.ward": "CHURCH",
+        "week": "30 Mar 2026",
+        "dateType": "DC_Decided",
+        "searchType": "Application",
+    }
+
+
+def test_planning_query_candidate_weeks_uses_requested_week_when_present() -> None:
+    """PlanningQuery should prefer an explicitly requested week."""
+    query = PlanningQuery(requested_week="30 Mar 2026", fallback_weeks=3)
+
+    assert query.candidate_weeks(["06 Apr 2026", "30 Mar 2026"]) == ["30 Mar 2026"]
+
+
+def test_planning_query_candidate_weeks_uses_fallback_window() -> None:
+    """PlanningQuery should return the requested fallback window from available weeks."""
+    query = PlanningQuery(fallback_weeks=2)
+
+    assert query.candidate_weeks(
+        ["06 Apr 2026", "30 Mar 2026", "23 Mar 2026", "16 Mar 2026"]
+    ) == ["06 Apr 2026", "30 Mar 2026", "23 Mar 2026"]

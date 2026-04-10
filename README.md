@@ -28,6 +28,19 @@ By default it checks the latest week in the dropdown and falls back one week if 
 no results, which matches the current need to use `30 Mar 2026` when the most recent week
 is empty. When that fallback happens, the CLI logs which week it is falling back from and to.
 
+## Query flow
+
+The scraper works in three stages:
+
+1. Build the weekly-list search payload.
+   `PlanningQuery` in [models.py](/Users/annarailton/projects/planning-update/models.py) resolves the optional human-readable ward and parish names to Oxford's internal codes and serializes the form payload for the selected week and mode (`validated` or `decided`).
+
+2. Submit the weekly-list search and collect result pages.
+   [scraper.py](/Users/annarailton/projects/planning-update/scraper.py) fetches the weekly-list form to get the CSRF token and available weeks, submits the query, and follows any pagination links so all result cards are collected rather than only the first page.
+
+3. Enrich each result from the application detail pages.
+   [parser.py](/Users/annarailton/projects/planning-update/parser.py) extracts the application reference, proposal, address, received date, and validated date from the weekly results. The scraper then fetches each application's summary page to get `status`, `decision`, and `decision issued date`, and fetches the `Important Dates` tab to get the consultation and determination deadlines.
+
 ## Setup with uv
 
 Create a virtual environment and install dependencies:

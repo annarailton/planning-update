@@ -17,7 +17,7 @@ dependencies = [
 oxford-weekly = "oxford_weekly_applications:main"
 
 [tool.setuptools]
-py-modules = ["oxford_weekly_applications"]
+py-modules = ["config", "oxford_weekly_applications"]
 
 [tool.ruff.lint]
 select = ["I", "D"]

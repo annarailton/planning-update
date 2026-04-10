@@ -4,7 +4,12 @@ from datetime import date
 
 from bs4 import BeautifulSoup
 
-from parser import extract_search_result_cards, extract_summary_application
+from parser import (
+    extract_further_information,
+    extract_search_result_cards,
+    extract_summary_application,
+    extract_summary_values,
+)
 
 
 def test_extract_search_result_cards_leaves_summary_only_fields_empty() -> None:
@@ -65,3 +70,35 @@ def test_extract_summary_application_populates_decision_fields() -> None:
     assert application.status == "Awaiting decision"
     assert application.decision == "Refused"
     assert application.decided == date(2026, 3, 14)
+
+
+def test_extract_further_information_returns_ward_and_parish() -> None:
+    """Further information pages should provide ward and parish values."""
+    ward, parish = extract_further_information(
+        """
+        <table id="simpleDetailsTable">
+          <tr><th>Ward</th><td>Churchill Ward</td></tr>
+          <tr><th>Parish</th><td>Littlemore Parish Council</td></tr>
+        </table>
+        """
+    )
+
+    assert ward == "Churchill Ward"
+    assert parish == "Littlemore Parish Council"
+
+
+def test_extract_summary_values_supports_details_table_without_id() -> None:
+    """Details pages should be parsed even when the table has no simpleDetailsTable id."""
+    soup = BeautifulSoup(
+        """
+        <div class="tabcontainer">
+          <table>
+            <tr><th scope="row">Parish</th><td/></tr>
+            <tr><th scope="row">Ward</th><td>Churchill Ward</td></tr>
+          </table>
+        </div>
+        """,
+        "html.parser",
+    )
+
+    assert extract_summary_values(soup) == {"ward": "Churchill Ward"}

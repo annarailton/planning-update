@@ -1,4 +1,4 @@
-"""Tests for ward-name normalization and resolution."""
+"""Tests for ward-name and parish-name normalization and resolution."""
 
 import pytest
 

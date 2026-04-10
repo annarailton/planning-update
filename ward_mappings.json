@@ -1,0 +1,130 @@
+{
+  "wards": [
+    {
+      "code": "BARTSD",
+      "name": "Barton And Sandhills Ward"
+    },
+    {
+      "code": "BBLEYS",
+      "name": "Blackbird Leys Ward"
+    },
+    {
+      "code": "CARJER",
+      "name": "Carfax And Jericho Ward"
+    },
+    {
+      "code": "CHURCH",
+      "name": "Churchill Ward"
+    },
+    {
+      "code": "COWLEY",
+      "name": "Cowley Ward"
+    },
+    {
+      "code": "CUTSUN",
+      "name": "Cutteslowe And Sunnymead Ward"
+    },
+    {
+      "code": "DONN",
+      "name": "Donnington Ward"
+    },
+    {
+      "code": "HHLNOR",
+      "name": "Headington Hill And Northway Ward"
+    },
+    {
+      "code": "HEAD",
+      "name": "Headington Ward"
+    },
+    {
+      "code": "HINKPK",
+      "name": "Hinksey Park"
+    },
+    {
+      "code": "HOLYWE",
+      "name": "Holywell Ward"
+    },
+    {
+      "code": "LITTM",
+      "name": "Littlemore Ward"
+    },
+    {
+      "code": "LYEVAL",
+      "name": "Lye Valley Ward"
+    },
+    {
+      "code": "MARST",
+      "name": "Marston Ward"
+    },
+    {
+      "code": "NORBRK",
+      "name": "Northfield Brook Ward"
+    },
+    {
+      "code": "OSNYST",
+      "name": "Osney And St. Thomas Ward"
+    },
+    {
+      "code": "OCB",
+      "name": "Outside City Boundary"
+    },
+    {
+      "code": "OSCB",
+      "name": "Outside City Boundary"
+    },
+    {
+      "code": "QUARIS",
+      "name": "Quarry And Risinghurst Ward"
+    },
+    {
+      "code": "RHIFF",
+      "name": "Rose Hill And Iffley Ward"
+    },
+    {
+      "code": "STCLEM",
+      "name": "St Clement's Ward"
+    },
+    {
+      "code": "STMARY",
+      "name": "St Marys Ward"
+    },
+    {
+      "code": "SUMTN1",
+      "name": "Summertown"
+    },
+    {
+      "code": "TEMCOW",
+      "name": "Temple Cowley Ward"
+    },
+    {
+      "code": "WALTMA",
+      "name": "Walton Manor Ward"
+    },
+    {
+      "code": "WOLVER",
+      "name": "Wolvercote Ward"
+    }
+  ],
+  "parishes": [
+    {
+      "code": "BPC",
+      "name": "Blackbird Leys Parish Council"
+    },
+    {
+      "code": "LPC",
+      "name": "Littlemore Parish Council"
+    },
+    {
+      "code": "OLD",
+      "name": "Old Marston Parish Council"
+    },
+    {
+      "code": "OSCB",
+      "name": "Outside City Boundary"
+    },
+    {
+      "code": "RPC",
+      "name": "Risinghurst And Sandhills Parish Council"
+    }
+  ]
+}

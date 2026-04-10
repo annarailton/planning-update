@@ -8,7 +8,6 @@ import sys
 import requests
 from pydantic import ValidationError
 
-from constants import DEFAULT_WARD_NAME
 from models import ApplicationStatusMode, PlanningQuery
 from scraper import fetch_latest_applications
 
@@ -30,8 +29,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--ward",
-        default=DEFAULT_WARD_NAME,
-        help=(f"Human-readable ward name to query. Default: {DEFAULT_WARD_NAME!r}."),
+        help="Optional human-readable ward name to query. Defaults to all wards.",
     )
     parser.add_argument(
         "--parish",
@@ -87,6 +85,7 @@ def main() -> int:
         print(f"Request failed: {exc}", file=sys.stderr)
         return 1
 
+    print(f"Found {len(applications)} applications.")
     print(
         json.dumps(
             [
@@ -94,7 +93,26 @@ def main() -> int:
                     "id": application.application_ref.value,
                     "proposal": application.proposal,
                     "url": application.url,
-                    "week": application.week,
+                    "address": application.address,
+                    "received": application.received.isoformat(),
+                    "validated": application.validated.isoformat(),
+                    "decided": (
+                        application.decided.isoformat()
+                        if application.decided is not None
+                        else None
+                    ),
+                    "consultation_deadline": (
+                        application.consultation_deadline.isoformat()
+                        if application.consultation_deadline is not None
+                        else None
+                    ),
+                    "determination_deadline": (
+                        application.determination_deadline.isoformat()
+                        if application.determination_deadline is not None
+                        else None
+                    ),
+                    "status": application.status,
+                    "decision": application.decision,
                 }
                 for application in applications
             ],

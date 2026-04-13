@@ -1,13 +1,15 @@
 """CLI entry point for the Oxford planning application scraper."""
 
-import json
 import logging
+from datetime import datetime
+from pathlib import Path
 from typing import Annotated
 
 import requests
 import typer
 from pydantic import ValidationError
 
+from html_render import build_search_criteria, render_application_html
 from models import ApplicationStatusMode, PlanningQuery
 from scraper import fetch_latest_applications
 
@@ -17,6 +19,12 @@ app = typer.Typer(
     no_args_is_help=True,
     help=("Fetch Oxford planning applications for a ward using the weekly list"),
 )
+
+
+def build_default_output_path(*, generated_at: datetime) -> Path:
+    """Build the default output filename with an ISO-like timestamp slug."""
+    timestamp_slug = generated_at.strftime("%Y-%m-%dT%H-%M-%S")
+    return Path(f"{timestamp_slug}_planning_applications.html")
 
 
 @app.callback()
@@ -64,8 +72,16 @@ def run(
             help="Do not fall back to an earlier week when the first checked week has no results."
         ),
     ] = False,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            help="Optional path to write the rendered HTML output file.",
+            dir_okay=False,
+            writable=True,
+        ),
+    ] = None,
 ) -> None:
-    """Run the CLI and print the scraped applications as JSON."""
+    """Run the CLI and write the scraped applications to an HTML file."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     if validated and decided:
@@ -90,44 +106,23 @@ def run(
         typer.secho(f"Request failed: {exc}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
+    output_path = output or build_default_output_path(generated_at=datetime.now())
+
     typer.echo(f"Found {len(applications)} applications.")
     if not applications:
         return
-    typer.echo(
-        json.dumps(
-            [
-                {
-                    "id": application.application_ref.value,
-                    "proposal": application.proposal,
-                    "url": application.url,
-                    "address": application.address,
-                    "ward": application.ward,
-                    "parish": application.parish,
-                    "received": application.received.isoformat(),
-                    "validated": application.validated.isoformat(),
-                    "decided": (
-                        application.decided.isoformat()
-                        if application.decided is not None
-                        else None
-                    ),
-                    "consultation_deadline": (
-                        application.consultation_deadline.isoformat()
-                        if application.consultation_deadline is not None
-                        else None
-                    ),
-                    "determination_deadline": (
-                        application.determination_deadline.isoformat()
-                        if application.determination_deadline is not None
-                        else None
-                    ),
-                    "status": application.status,
-                    "decision": application.decision,
-                }
-                for application in applications
-            ],
-            indent=2,
-        )
+    output_path.write_text(
+        render_application_html(
+            applications,
+            search_criteria=build_search_criteria(
+                query=query,
+                validated=validated,
+                decided=decided,
+            ),
+        ),
+        encoding="utf-8",
     )
+    typer.echo(f"Saved HTML output to {output_path}")
 
 
 def main() -> None:

@@ -1,42 +1,30 @@
 """Tests for the Typer CLI entry point."""
 
 import re
-from datetime import date
+from collections.abc import Callable
 from pathlib import Path
 
 from typer.testing import CliRunner
 
 import main
-from models import Application, ApplicationRef, PlanningQuery
+from models import Application, PlanningQuery
 
 runner = CliRunner()
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
-def test_cli_writes_html_output_file(monkeypatch, tmp_path: Path) -> None:
+def test_cli_writes_html_output_file(
+    application_factory: Callable[..., Application],
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
     """CLI should print the application count and write HTML card output to a file."""
 
     def fake_fetch_latest_applications(query: PlanningQuery) -> list[Application]:
         assert query.ward_name == "churchill"
         assert query.status_mode == "decided"
         assert query.strict is True
-        return [
-            Application(
-                application_ref=ApplicationRef(value="26/00281/FUL"),
-                proposal="Test proposal",
-                url="https://example.com/app",
-                address="1 Test Street",
-                ward="Churchill Ward",
-                parish=None,
-                received=date(2026, 2, 2),
-                validated=date(2026, 2, 9),
-                decided=date(2026, 4, 9),
-                consultation_deadline=date(2026, 3, 16),
-                determination_deadline=date(2026, 4, 6),
-                status="Decided",
-                decision="Approved",
-            )
-        ]
+        return [application_factory()]
 
     monkeypatch.setattr(
         main, "fetch_latest_applications", fake_fetch_latest_applications
@@ -73,28 +61,12 @@ def test_cli_writes_html_output_file(monkeypatch, tmp_path: Path) -> None:
 
 
 def test_cli_uses_timestamped_default_output_filename(
-    monkeypatch, tmp_path: Path
+    application_factory: Callable[..., Application], monkeypatch, tmp_path: Path
 ) -> None:
     """CLI should use a timestamped HTML filename when output is not provided."""
 
     def fake_fetch_latest_applications(query: PlanningQuery) -> list[Application]:
-        return [
-            Application(
-                application_ref=ApplicationRef(value="26/00281/FUL"),
-                proposal="Test proposal",
-                url="https://example.com/app",
-                address="1 Test Street",
-                ward="Churchill Ward",
-                parish=None,
-                received=date(2026, 2, 2),
-                validated=date(2026, 2, 9),
-                decided=date(2026, 4, 9),
-                consultation_deadline=date(2026, 3, 16),
-                determination_deadline=date(2026, 4, 6),
-                status="Decided",
-                decision="Approved",
-            )
-        ]
+        return [application_factory()]
 
     monkeypatch.setattr(
         main, "fetch_latest_applications", fake_fetch_latest_applications
@@ -114,27 +86,13 @@ def test_cli_uses_timestamped_default_output_filename(
     assert default_output_path.exists()
 
 
-def test_cli_sends_email_via_resend(monkeypatch, tmp_path: Path) -> None:
+def test_cli_sends_email_via_resend(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path: Path
+) -> None:
     """CLI should send the rendered HTML via Resend when requested."""
 
     def fake_fetch_latest_applications(query: PlanningQuery) -> list[Application]:
-        return [
-            Application(
-                application_ref=ApplicationRef(value="26/00281/FUL"),
-                proposal="Test proposal",
-                url="https://example.com/app",
-                address="1 Test Street",
-                ward="Churchill Ward",
-                parish=None,
-                received=date(2026, 2, 2),
-                validated=date(2026, 2, 9),
-                decided=date(2026, 4, 9),
-                consultation_deadline=date(2026, 3, 16),
-                determination_deadline=date(2026, 4, 6),
-                status="Decided",
-                decision="Approved",
-            )
-        ]
+        return [application_factory()]
 
     sent_payload: dict[str, str] = {}
 
@@ -181,27 +139,13 @@ def test_cli_sends_email_via_resend(monkeypatch, tmp_path: Path) -> None:
     assert "Oxford Planning Applications" in sent_payload["text"]
 
 
-def test_cli_dry_run_email_skips_resend(monkeypatch, tmp_path: Path) -> None:
+def test_cli_dry_run_email_skips_resend(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path: Path
+) -> None:
     """CLI should build the email payload without sending in dry-run mode."""
 
     def fake_fetch_latest_applications(query: PlanningQuery) -> list[Application]:
-        return [
-            Application(
-                application_ref=ApplicationRef(value="26/00281/FUL"),
-                proposal="Test proposal",
-                url="https://example.com/app",
-                address="1 Test Street",
-                ward="Churchill Ward",
-                parish=None,
-                received=date(2026, 2, 2),
-                validated=date(2026, 2, 9),
-                decided=date(2026, 4, 9),
-                consultation_deadline=date(2026, 3, 16),
-                determination_deadline=date(2026, 4, 6),
-                status="Decided",
-                decision="Approved",
-            )
-        ]
+        return [application_factory()]
 
     def fail_send_resend_email(**kwargs) -> str:
         raise AssertionError("send_resend_email should not be called in dry-run mode")

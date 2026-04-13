@@ -1,34 +1,18 @@
 """Tests for email sending helpers."""
 
-from datetime import date, datetime
+from collections.abc import Callable
+from datetime import datetime
 
 import email_sender
-from models import Application, ApplicationRef
+from models import Application
 
 
-def build_application() -> Application:
-    """Build an application fixture for email sender tests."""
-    return Application(
-        application_ref=ApplicationRef(value="26/00281/FUL"),
-        proposal="Test proposal",
-        url="https://example.com/app",
-        address="1 Test Street",
-        ward="Churchill Ward",
-        parish=None,
-        received=date(2026, 2, 2),
-        validated=date(2026, 2, 9),
-        decided=date(2026, 4, 9),
-        consultation_deadline=date(2026, 3, 16),
-        determination_deadline=date(2026, 4, 6),
-        status="Decided",
-        decision="Approved",
-    )
-
-
-def test_build_plain_text_email_includes_core_sections() -> None:
+def test_build_plain_text_email_includes_core_sections(
+    application_factory: Callable[..., Application],
+) -> None:
     """Plain text email should include summary, criteria, and application details."""
     text = email_sender.build_plain_text_email(
-        applications=[build_application()],
+        applications=[application_factory()],
         generated_at=datetime(2026, 4, 13, 9, 30),
         search_criteria={"Ward": "Churchill", "Mode": "Validated in this week"},
     )

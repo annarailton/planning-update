@@ -1,36 +1,12 @@
 """Tests for HTML rendering of planning applications."""
 
+from collections.abc import Callable
 from datetime import date, datetime
 
 import pytest
 
 import html_render
-from models import Application, ApplicationRef
-
-
-def build_application(
-    *,
-    decision: str,
-    consultation_deadline: date = date(2026, 3, 16),
-    determination_deadline: date = date(2026, 4, 6),
-    status: str = "Decided",
-) -> Application:
-    """Build an application fixture for HTML rendering tests."""
-    return Application(
-        application_ref=ApplicationRef(value="26/00281/FUL"),
-        proposal="Test proposal",
-        url="https://example.com/app",
-        address="1 Test Street",
-        ward="Churchill Ward",
-        parish=None,
-        received=date(2026, 2, 2),
-        validated=date(2026, 2, 9),
-        decided=date(2026, 4, 9),
-        consultation_deadline=consultation_deadline,
-        determination_deadline=determination_deadline,
-        status=status,
-        decision=decision,
-    )
+from models import Application
 
 
 @pytest.mark.parametrize(
@@ -54,10 +30,13 @@ def build_application(
     ],
 )
 def test_render_application_html_colours_decisions(
-    decision: str, css_class: str, css_rule: str
+    application_factory: Callable[..., Application],
+    decision: str,
+    css_class: str,
+    css_rule: str,
 ) -> None:
     """Decision values should use the expected styling."""
-    html = html_render.render_application_html([build_application(decision=decision)])
+    html = html_render.render_application_html([application_factory(decision=decision)])
 
     assert css_rule in html
     assert f'<td class="field-value {css_class}" valign="top">{decision}</td>' in html
@@ -93,6 +72,7 @@ def test_render_application_html_colours_decisions(
     ],
 )
 def test_render_application_html_colours_deadlines(
+    application_factory: Callable[..., Application],
     monkeypatch: pytest.MonkeyPatch,
     field_name: str,
     field_value: date,
@@ -103,7 +83,7 @@ def test_render_application_html_colours_deadlines(
     monkeypatch.setattr(html_render, "current_date", lambda: date(2026, 4, 13))
 
     html = html_render.render_application_html(
-        [build_application(decision="Approved", **{field_name: field_value})]
+        [application_factory(decision="Approved", **{field_name: field_value})]
     )
 
     assert css_rule in html
@@ -129,11 +109,14 @@ def test_render_application_html_colours_deadlines(
     ],
 )
 def test_render_application_html_colours_statuses(
-    status: str, css_class: str, css_rule: str
+    application_factory: Callable[..., Application],
+    status: str,
+    css_class: str,
+    css_rule: str,
 ) -> None:
     """Status values should use the expected styling."""
     html = html_render.render_application_html(
-        [build_application(decision="Approved", status=status)]
+        [application_factory(decision="Approved", status=status)]
     )
 
     assert css_rule in html
@@ -141,12 +124,15 @@ def test_render_application_html_colours_statuses(
 
 
 def test_render_application_html_colours_past_decision_dates_green(
+    application_factory: Callable[..., Application],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Past decision dates should use the success styling."""
     monkeypatch.setattr(html_render, "current_date", lambda: date(2026, 4, 13))
 
-    html = html_render.render_application_html([build_application(decision="Approved")])
+    html = html_render.render_application_html(
+        [application_factory(decision="Approved")]
+    )
 
     assert "--color-success:#18794e;" in html
     assert "--color-warning:#b26b00;" in html
@@ -159,7 +145,9 @@ def test_render_application_html_colours_past_decision_dates_green(
     )
 
 
-def test_render_application_html_shows_search_criteria_in_header() -> None:
+def test_render_application_html_shows_search_criteria_in_header(
+    application_factory: Callable[..., Application],
+) -> None:
     """The HTML output should include the search criteria used."""
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setattr(
@@ -167,7 +155,7 @@ def test_render_application_html_shows_search_criteria_in_header() -> None:
     )
     try:
         html = html_render.render_application_html(
-            [build_application(decision="Approved")],
+            [application_factory(decision="Approved")],
             search_criteria={
                 "Ward": "Churchill",
                 "Parish": "All parishes",

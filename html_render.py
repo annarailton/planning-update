@@ -113,38 +113,78 @@ def render_application_html(
     search_criteria: dict[str, str] | None = None,
     today: date | None = None,
 ) -> str:
-    """Render applications as a simple HTML document with one card per application."""
+    """Render applications as a simple email-friendly HTML document."""
     render_today = today or current_date()
     rendered_at = current_datetime()
 
-    def render_field(label: str, value: str, value_class: str = "") -> str:
-        return (
-            '<div class="field">'
-            f'<div class="field-label">{escape(label)}</div>'
-            f'<div class="field-value{value_class}">{value}</div>'
-            "</div>"
-        )
+    def render_fields_table(
+        fields: list[tuple[str, str, str]],
+    ) -> str:
+        rows: list[str] = []
+        for index in range(0, len(fields), 2):
+            left_label, left_value, left_class = fields[index]
+            if index + 1 < len(fields):
+                right_label, right_value, right_class = fields[index + 1]
+            else:
+                right_label, right_value, right_class = "", "", ""
+
+            rows.append(
+                (
+                    '<tr class="field-row">'
+                    f'<td class="field-label" valign="top">{escape(left_label)}</td>'
+                    f'<td class="field-value{left_class}" valign="top">{left_value}</td>'
+                    f'<td class="field-label" valign="top">{escape(right_label)}</td>'
+                    f'<td class="field-value{right_class}" valign="top">{right_value}</td>'
+                    "</tr>"
+                )
+            )
+        return "".join(rows)
 
     cards: list[str] = []
     for application in applications:
+        fields = [
+            ("Ward", escape(application.ward or "Not provided"), ""),
+            (
+                "Status",
+                escape(application.status or "Not provided"),
+                status_css_class(application.status),
+            ),
+            ("Received", format_application_date(application.received), ""),
+            ("Validated", format_application_date(application.validated), ""),
+            (
+                "Consultation deadline",
+                format_application_date(application.consultation_deadline),
+                date_css_class(application.consultation_deadline, today=render_today),
+            ),
+            (
+                "Determination deadline",
+                format_application_date(application.determination_deadline),
+                date_css_class(application.determination_deadline, today=render_today),
+            ),
+            (
+                "Decision",
+                escape(application.decision or "Not provided"),
+                decision_css_class(application.decision),
+            ),
+            (
+                "Decided",
+                format_application_date(application.decided),
+                decision_date_css_class(application.decided, today=render_today),
+            ),
+        ]
         cards.append(
             (
-                '<article class="card">'
+                '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="card">'
+                "<tr><td>"
                 f'<div class="eyebrow">{escape(application.application_ref.value)}</div>'
-                f"<h2>{escape(application.proposal)}</h2>"
+                f'<h2 class="card-title">{escape(application.proposal)}</h2>'
                 f'<p class="address">{escape(application.address)}</p>'
-                f'<p><a href="{escape(application.url, quote=True)}">View application</a></p>'
-                '<div class="fields">'
-                f"{render_field('Ward', escape(application.ward or 'Not provided'))}"
-                f"{render_field('Received', format_application_date(application.received))}"
-                f"{render_field('Validated', format_application_date(application.validated))}"
-                f"{render_field('Status', escape(application.status or 'Not provided'), status_css_class(application.status))}"
-                f"{render_field('Consultation deadline', format_application_date(application.consultation_deadline), date_css_class(application.consultation_deadline, today=render_today))}"
-                f"{render_field('Determination deadline', format_application_date(application.determination_deadline), date_css_class(application.determination_deadline, today=render_today))}"
-                f"{render_field('Decision', escape(application.decision or 'Not provided'), decision_css_class(application.decision))}"
-                f"{render_field('Decision date', format_application_date(application.decided), decision_date_css_class(application.decided, today=render_today))}"
-                "</div>"
-                "</article>"
+                f'<p class="link-row"><a href="{escape(application.url, quote=True)}">View application</a></p>'
+                '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="fields">'
+                f"{render_fields_table(fields)}"
+                "</table>"
+                "</td></tr>"
+                "</table>"
             )
         )
 
@@ -152,10 +192,10 @@ def render_application_html(
     if search_criteria:
         criteria_fields = "".join(
             (
-                '<span class="criteria-item">'
-                f'<span class="criteria-label">{escape(label)}:</span> '
-                f'<span class="criteria-value">{escape(value)}</span>'
-                "</span>"
+                '<tr class="criteria-item">'
+                f'<td class="criteria-label" valign="top">{escape(label)}:</td>'
+                f'<td class="criteria-value" valign="top">{escape(value)}</td>'
+                "</tr>"
             )
             for label, value in search_criteria.items()
         )
@@ -184,30 +224,35 @@ def render_application_html(
         f"--color-warning:{WARNING_COLOR};"
         f"--color-danger:{DANGER_COLOR};"
         "}"
-        "body{margin:0;padding:24px;background:var(--color-page-background);color:var(--color-text-primary);"
-        "font-family:Arial,sans-serif;line-height:1.5;}"
-        ".wrapper{max-width:960px;margin:0 auto;}"
+        "body{margin:0;padding:0;background:var(--color-page-background);color:var(--color-text-primary);font-family:Arial,sans-serif;line-height:1.5;}"
+        "table{border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt;}"
+        ".email-shell{background:var(--color-page-background);}"
+        ".wrapper{width:100%;max-width:960px;margin:0 auto;}"
+        ".content-cell{padding:24px;}"
         "h1{margin:0 0 8px;font-size:32px;line-height:1.1;}"
-        ".timestamp{margin:0 0 8px;color:var(--color-text-secondary);font-size:13px;}"
+        ".timestamp{margin:16px 0 8px;color:var(--color-text-secondary);font-size:13px;}"
         ".summary{margin:0 0 16px;color:var(--color-text-secondary);}"
-        ".criteria{margin:0 0 20px;padding:12px 16px;background:var(--color-surface-primary);border:1px solid var(--color-border-subtle);"
-        "border-radius:12px;box-shadow:0 4px 12px var(--color-shadow);}"
+        ".criteria{background:var(--color-surface-primary);border:1px solid var(--color-border-subtle);border-radius:12px;box-shadow:0 4px 12px var(--color-shadow);}"
+        ".criteria-cell{padding:10px 14px;}"
         ".criteria h2{margin:0 0 8px;font-size:15px;line-height:1.2;}"
-        ".criteria-list{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:13px;line-height:1.4;}"
+        ".criteria-list{width:100%;font-size:13px;line-height:1.4;}"
         ".criteria-item{color:var(--color-text-secondary);}"
-        ".criteria-label{font-weight:700;color:var(--color-text-strong);}"
-        ".cards{display:grid;gap:16px;}"
-        ".card{background:var(--color-surface-primary);border:1px solid var(--color-border-subtle);border-radius:12px;"
-        "padding:20px;box-shadow:0 4px 12px var(--color-shadow);}"
+        ".criteria-label{font-weight:700;color:var(--color-text-strong);padding:0 10px 6px 0;white-space:nowrap;}"
+        ".criteria-value{color:var(--color-text-secondary);padding:0 0 6px 0;}"
+        ".card{background:var(--color-surface-primary);border:1px solid var(--color-border-subtle);border-radius:12px;box-shadow:0 4px 12px var(--color-shadow);margin-top:12px;}"
+        ".card td{padding:14px;}"
         ".eyebrow{font-size:12px;font-weight:700;letter-spacing:0.08em;"
         "text-transform:uppercase;color:var(--color-accent-warm);margin-bottom:10px;}"
-        ".card h2{margin:0 0 8px;font-size:24px;line-height:1.2;}"
-        ".address{margin:0 0 12px;color:var(--color-text-secondary);}"
-        ".fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;}"
-        ".field{padding:12px;background:var(--color-surface-secondary);border-radius:8px;}"
+        ".card-title{margin:0 0 8px;font-size:24px;line-height:1.2;}"
+        ".address{margin:0 0 8px;color:var(--color-text-secondary);}"
+        ".link-row{margin:0 0 8px;}"
+        ".link-row a{display:inline-block;font-size:15px;font-weight:700;padding-left:2px;}"
+        ".fields{width:100%;}"
+        ".field-row{background:var(--color-surface-secondary);}"
+        ".field-row + .field-row td{border-top:6px solid var(--color-surface-primary);}"
         ".field-label{font-size:12px;font-weight:700;text-transform:uppercase;"
-        "letter-spacing:0.05em;color:var(--color-text-tertiary);margin-bottom:4px;}"
-        ".field-value{font-size:14px;word-break:break-word;}"
+        "letter-spacing:0.05em;color:var(--color-text-tertiary);padding:9px 8px 9px 12px;width:120px;}"
+        ".field-value{font-size:14px;word-break:break-word;padding:9px 12px 9px 10px;}"
         ".field-value--date-future{color:var(--color-success);font-weight:700;}"
         ".field-value--date-past{color:var(--color-danger);font-weight:700;}"
         ".field-value--decision-approved{color:var(--color-success);font-weight:700;}"
@@ -220,13 +265,20 @@ def render_application_html(
         "</style>"
         "</head>"
         "<body>"
-        '<main class="wrapper">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="email-shell">'
+        '<tr><td align="center">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="wrapper">'
+        '<tr><td class="content-cell">'
         "<h1>Oxford Planning Applications</h1>"
-        f'<p class="timestamp">Generated {format_generated_timestamp(rendered_at)}</p>'
         f'<p class="summary">Found {len(applications)} application{"s" if len(applications) != 1 else ""}.</p>'
-        f'<section class="criteria"><h2>Search criteria</h2><div class="criteria-list">{criteria_fields}</div></section>'
-        f'<section class="cards">{"".join(cards)}</section>'
-        "</main>"
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="criteria"><tr><td class="criteria-cell">'
+        "<h2>Search criteria</h2>"
+        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="criteria-list">{criteria_fields}</table>'
+        "</td></tr></table>"
+        f"{''.join(cards)}"
+        f'<p class="timestamp">Generated {format_generated_timestamp(rendered_at)}</p>'
+        "</td></tr></table>"
+        "</td></tr></table>"
         "</body>"
         "</html>"
     )

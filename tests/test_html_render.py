@@ -60,7 +60,7 @@ def test_render_application_html_colours_decisions(
     html = html_render.render_application_html([build_application(decision=decision)])
 
     assert css_rule in html
-    assert f'<div class="field-value {css_class}">{decision}</div>' in html
+    assert f'<td class="field-value {css_class}" valign="top">{decision}</td>' in html
 
 
 @pytest.mark.parametrize(
@@ -108,7 +108,8 @@ def test_render_application_html_colours_deadlines(
 
     assert css_rule in html
     assert (
-        f'<div class="field-value {css_class}">{field_value.isoformat()}</div>' in html
+        f'<td class="field-value {css_class}" valign="top">{field_value.isoformat()}</td>'
+        in html
     )
 
 
@@ -136,7 +137,7 @@ def test_render_application_html_colours_statuses(
     )
 
     assert css_rule in html
-    assert f'<div class="field-value {css_class}">{status}</div>' in html
+    assert f'<td class="field-value {css_class}" valign="top">{status}</td>' in html
 
 
 def test_render_application_html_colours_past_decision_dates_green(
@@ -153,7 +154,7 @@ def test_render_application_html_colours_past_decision_dates_green(
     assert "--color-link:#0b6e4f;" in html
     assert ".field-value--decision-date-past{color:var(--color-success);" in html
     assert (
-        '<div class="field-value field-value--decision-date-past">2026-04-09</div>'
+        '<td class="field-value field-value--decision-date-past" valign="top">2026-04-09</td>'
         in html
     )
 

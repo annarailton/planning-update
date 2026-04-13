@@ -114,6 +114,120 @@ def test_cli_uses_timestamped_default_output_filename(
     assert default_output_path.exists()
 
 
+def test_cli_sends_email_via_resend(monkeypatch, tmp_path: Path) -> None:
+    """CLI should send the rendered HTML via Resend when requested."""
+
+    def fake_fetch_latest_applications(query: PlanningQuery) -> list[Application]:
+        return [
+            Application(
+                application_ref=ApplicationRef(value="26/00281/FUL"),
+                proposal="Test proposal",
+                url="https://example.com/app",
+                address="1 Test Street",
+                ward="Churchill Ward",
+                parish=None,
+                received=date(2026, 2, 2),
+                validated=date(2026, 2, 9),
+                decided=date(2026, 4, 9),
+                consultation_deadline=date(2026, 3, 16),
+                determination_deadline=date(2026, 4, 6),
+                status="Decided",
+                decision="Approved",
+            )
+        ]
+
+    sent_payload: dict[str, str] = {}
+
+    def fake_send_resend_email(
+        *,
+        api_key: str,
+        recipient: str,
+        subject: str,
+        html: str,
+        text: str,
+        sender: str = "anna@railton.dev",
+    ) -> str:
+        sent_payload.update(
+            {
+                "api_key": api_key,
+                "recipient": recipient,
+                "subject": subject,
+                "html": html,
+                "text": text,
+                "sender": sender,
+            }
+        )
+        return "email_123"
+
+    monkeypatch.setattr(
+        main, "fetch_latest_applications", fake_fetch_latest_applications
+    )
+    monkeypatch.setattr(main, "send_resend_email", fake_send_resend_email)
+    monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
+
+    output_path = tmp_path / "applications.html"
+    result = runner.invoke(
+        main.app,
+        ["--email-to", "test@example.com", "--output", str(output_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "Sent email to test@example.com via Resend (email_123)." in result.stdout
+    assert sent_payload["api_key"] == "re_test_key"
+    assert sent_payload["recipient"] == "test@example.com"
+    assert sent_payload["sender"] == "anna@railton.dev"
+    assert "Oxford planning applications" in sent_payload["subject"]
+    assert "<!DOCTYPE html>" in sent_payload["html"]
+    assert "Oxford Planning Applications" in sent_payload["text"]
+
+
+def test_cli_dry_run_email_skips_resend(monkeypatch, tmp_path: Path) -> None:
+    """CLI should build the email payload without sending in dry-run mode."""
+
+    def fake_fetch_latest_applications(query: PlanningQuery) -> list[Application]:
+        return [
+            Application(
+                application_ref=ApplicationRef(value="26/00281/FUL"),
+                proposal="Test proposal",
+                url="https://example.com/app",
+                address="1 Test Street",
+                ward="Churchill Ward",
+                parish=None,
+                received=date(2026, 2, 2),
+                validated=date(2026, 2, 9),
+                decided=date(2026, 4, 9),
+                consultation_deadline=date(2026, 3, 16),
+                determination_deadline=date(2026, 4, 6),
+                status="Decided",
+                decision="Approved",
+            )
+        ]
+
+    def fail_send_resend_email(**kwargs) -> str:
+        raise AssertionError("send_resend_email should not be called in dry-run mode")
+
+    monkeypatch.setattr(
+        main, "fetch_latest_applications", fake_fetch_latest_applications
+    )
+    monkeypatch.setattr(main, "send_resend_email", fail_send_resend_email)
+
+    output_path = tmp_path / "applications.html"
+    result = runner.invoke(
+        main.app,
+        [
+            "--email-to",
+            "test@example.com",
+            "--dry-run-email",
+            "--output",
+            str(output_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Dry run: prepared email to test@example.com" in result.stdout
+    assert output_path.exists()
+
+
 def test_cli_rejects_validated_and_decided_together() -> None:
     """CLI should reject selecting both date mode flags."""
     result = runner.invoke(main.app, ["--validated", "--decided"])

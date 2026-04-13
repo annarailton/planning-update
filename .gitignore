@@ -1,75 +1,30 @@
-# Dependencies
-node_modules/
-.pnpm-store/
-*.pyc
+# Byte-compiled / optimized / DLL files
 __pycache__/
-.venv/
-*.egg-info/
-dist/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
 build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
 
-# Environment files
-.env
-.env.*
-!.env.*.example
-environment/.env.*
-!environment/.env.*.example
-environment/dev/.env.*
-!environment/dev/.env.*.example
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
 
-# Setup tracking
-.setup-progress
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-.DS_Store
-
-# Terraform
-*.tfstate
-*.tfstate.*
-.terraform/
-*.tfplan
-*.tfvars
-!*.tfvars.example
-gcp.json
-
-# Docker
-docker-compose.override.yml
-
-# Logs
-*.log
-logs/
-
-# Testing
-coverage/
-.coverage
+# Test / coverage
 .pytest_cache/
-*.cover
+.coverage
+.coverage.*
+htmlcov/
 
-# Build artifacts
-*.tar.gz
-*.zip
+# Tooling caches
+.mypy_cache/
+.ruff_cache/
 
-# Generated files
-docs/erd.png
-docs/erd.svg
-docs/erd.pdf
-
-# Setup files
-.google-credentials.json
-.setup-secrets.sh
-
-# Claude Code local files
-CLAUDE.local.md
-.claude/settings.local.json
-
-# Skill eval results (generated outputs)
-.claude/skills/*/evals/results/
-
-# Codex CLI local files
-.codex/config.local.toml
-.sumi/
-environment/.env.backend
+# Local generated output
+*_planning_applications.html

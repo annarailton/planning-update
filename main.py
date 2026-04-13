@@ -14,7 +14,7 @@ from scraper import fetch_latest_applications
 app = typer.Typer(
     add_completion=False,
     invoke_without_command=True,
-    no_args_is_help=False,
+    no_args_is_help=True,
     help=("Fetch Oxford planning applications for a ward using the weekly list"),
 )
 

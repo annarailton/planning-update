@@ -28,3 +28,6 @@ htmlcov/
 
 # Local generated output
 *_planning_applications.html
+
+# Environment variables
+.env

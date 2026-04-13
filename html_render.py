@@ -19,7 +19,7 @@ from constants import (
     TEXT_TERTIARY_COLOR,
     WARNING_COLOR,
 )
-from models import Application
+from models import Application, PlanningQuery
 
 
 def current_date() -> date:
@@ -84,6 +84,27 @@ def decision_date_css_class(value: date | None, *, today: date) -> str:
     if value < today:
         return " field-value--decision-date-past"
     return ""
+
+
+def build_search_criteria(
+    *,
+    query: PlanningQuery,
+    validated: bool,
+    decided: bool,
+) -> dict[str, str]:
+    """Build the rendered search criteria summary for the HTML output."""
+    mode = "Decided in this week" if decided else "Validated in this week"
+    if validated:
+        mode = "Validated in this week"
+
+    return {
+        "Ward": query.resolved_ward_name(),
+        "Parish": query.resolved_parish_name(),
+        "Mode": mode,
+        "Week": query.requested_week or "Latest available",
+        "Fallback weeks": str(query.fallback_weeks),
+        "Strict mode": "Yes" if query.strict else "No",
+    }
 
 
 def render_application_html(

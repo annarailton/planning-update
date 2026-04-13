@@ -1,5 +1,6 @@
 """Tests for the Typer CLI entry point."""
 
+import re
 from datetime import date
 from pathlib import Path
 
@@ -9,6 +10,7 @@ import main
 from models import Application, ApplicationRef, PlanningQuery
 
 runner = CliRunner()
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def test_cli_writes_html_output_file(monkeypatch, tmp_path: Path) -> None:
@@ -115,6 +117,8 @@ def test_cli_uses_timestamped_default_output_filename(
 def test_cli_rejects_validated_and_decided_together() -> None:
     """CLI should reject selecting both date mode flags."""
     result = runner.invoke(main.app, ["--validated", "--decided"])
+    # Typer may emit ANSI styling in CI, so normalize before asserting on text.
+    output = ANSI_ESCAPE_RE.sub("", result.output)
 
     assert result.exit_code != 0
-    assert "Use at most one of --validated or --decided." in result.output
+    assert "Use at most one of --validated or --decided." in output

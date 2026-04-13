@@ -20,16 +20,13 @@ dependencies = [
 oxford-weekly = "main:main"
 
 [tool.setuptools]
-py-modules = ["constants", "location_lookup", "main", "models", "parser", "scraper"]
+py-modules = ["constants", "html_render", "location_lookup", "main", "models", "parser", "scraper"]
 
 [tool.setuptools.data-files]
 "" = ["ward_mappings.json"]
 
 [tool.ruff.lint]
 select = ["I", "D"]
-
-[tool.ruff.lint.isort]
-known-first-party = ["oxford_weekly_applications"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

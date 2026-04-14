@@ -10,14 +10,14 @@ import requests
 import typer
 from pydantic import ValidationError
 
-from config import load_cli_config
+from config import load_cli_config, resolve_cli_options
 from email_sender import (
     build_email_subject,
     build_plain_text_email,
     send_resend_email,
 )
 from html_render import build_search_criteria, render_application_html
-from models import ApplicationStatusMode, PlanningQuery
+from models import CliInputs
 from scraper import fetch_latest_applications
 
 app = typer.Typer(
@@ -126,43 +126,29 @@ def run(
         typer.secho(f"Error: {exc}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
-    if validated is True and decided is True:
-        raise typer.BadParameter("Use at most one of --validated or --decided.")
-
-    if decided is True:
-        status_mode: ApplicationStatusMode = "decided"
-    elif validated is True:
-        status_mode = "validated"
-    elif cli_config.status_mode is not None:
-        status_mode = cli_config.status_mode
-    else:
-        status_mode = "validated"
-
-    fallback_weeks_value = (
-        fallback_weeks
-        if fallback_weeks is not None
-        else cli_config.fallback_weeks if cli_config.fallback_weeks is not None else 1
-    )
-    debug = debug or cli_config.debug is True
-    strict_value = (
-        strict
-        if strict is not None
-        else cli_config.strict if cli_config.strict is not None else False
-    )
-    output_path = output or cli_config.output
-    email_recipient = email_to if email_to is not None else cli_config.email_to
-
-    query = PlanningQuery(
-        ward_name=ward if ward is not None else cli_config.ward,
-        parish_name=parish if parish is not None else cli_config.parish,
-        requested_week=week if week is not None else cli_config.week,
-        fallback_weeks=max(0, fallback_weeks_value),
-        strict=strict_value,
-        status_mode=status_mode,
-    )
-
     try:
-        applications = fetch_latest_applications(query)
+        options = resolve_cli_options(
+            cli_inputs=CliInputs(
+                debug=debug,
+                ward=ward,
+                parish=parish,
+                validated=validated,
+                decided=decided,
+                week=week,
+                fallback_weeks=fallback_weeks,
+                strict=strict,
+                output=output,
+                email_to=email_to,
+            ),
+            cli_config=cli_config,
+        )
+    except ValueError as exc:
+        typer.secho(f"Error: {exc}", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    # Get the applications matching the query
+    try:
+        applications = fetch_latest_applications(options.query)
     except (ValueError, ValidationError) as exc:
         typer.secho(f"Error: {exc}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
@@ -171,11 +157,11 @@ def run(
         raise typer.Exit(code=1) from exc
 
     generated_at = datetime.now()
-    output_path = output_path or build_default_output_path(generated_at=generated_at)
+    output_path = options.output or build_default_output_path(generated_at=generated_at)
     search_criteria = build_search_criteria(
-        query=query,
-        validated=status_mode == "validated",
-        decided=status_mode == "decided",
+        query=options.query,
+        validated=options.query.status_mode == "validated",
+        decided=options.query.status_mode == "decided",
     )
     html_output = render_application_html(
         applications,
@@ -187,17 +173,14 @@ def run(
         return
 
     # We don't send and email and dump results to HTML in debug mode
-    if debug:
-        output_path = output_path or build_default_output_path(
-            generated_at=generated_at
-        )
+    if options.debug:
         output_path.write_text(html_output, encoding="utf-8")
         typer.echo(f"Saved HTML output to {output_path}")
         return
 
-    if email_recipient:
+    if options.email_recipient:
         subject = build_email_subject(
-            week=query.requested_week,
+            week=options.query.requested_week,
         )
         text_output = build_plain_text_email(
             applications=applications,
@@ -213,12 +196,12 @@ def run(
 
         email_id = send_resend_email(
             api_key=resend_api_key,
-            recipient=email_recipient,
+            recipient=options.email_recipient,
             subject=subject,
             html=html_output,
             text=text_output,
         )
-        typer.echo(f"Sent email to {email_recipient} via Resend ({email_id}).")
+        typer.echo(f"Sent email to {options.email_recipient} via Resend ({email_id}).")
 
 
 def main() -> None:

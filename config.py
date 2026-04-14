@@ -3,35 +3,14 @@
 import tomllib
 from pathlib import Path
 
-from pydantic import BaseModel, field_validator
-
-from models import ApplicationStatusMode
-
-DEFAULT_CONFIG_FILENAME = "planning_update.toml"
-
-
-class CliConfig(BaseModel):
-    """Optional CLI defaults loaded from TOML."""
-
-    debug: bool | None = None
-    ward: str | None = None
-    parish: str | None = None
-    status_mode: ApplicationStatusMode | None = None
-    week: str | None = None
-    fallback_weeks: int | None = None
-    strict: bool | None = None
-    output: Path | None = None
-    email_to: str | None = None
-
-    @field_validator("fallback_weeks")
-    @classmethod
-    def validate_fallback_weeks(cls, value: int | None) -> int | None:
-        """Ensure configured fallback weeks are non-negative."""
-        if value is None:
-            return None
-        if value < 0:
-            raise ValueError("fallback_weeks must be greater than or equal to 0")
-        return value
+from constants import DEFAULT_CONFIG_FILENAME
+from models import (
+    ApplicationStatusMode,
+    CliConfig,
+    CliInputs,
+    PlanningQuery,
+    ResolvedCliOptions,
+)
 
 
 def default_config_path() -> Path:
@@ -57,3 +36,57 @@ def load_cli_config(path: Path | None = None) -> CliConfig:
         config.output = (config_path.parent / config.output).resolve()
 
     return config
+
+
+def resolve_cli_options(
+    *, cli_inputs: CliInputs, cli_config: CliConfig
+) -> ResolvedCliOptions:
+    """Merge raw CLI inputs with config defaults into runtime options."""
+    if cli_inputs.validated is True and cli_inputs.decided is True:
+        raise ValueError("Use at most one of --validated or --decided.")
+
+    if cli_inputs.decided is True:
+        status_mode: ApplicationStatusMode = "decided"
+    elif cli_inputs.validated is True:
+        status_mode = "validated"
+    elif cli_config.status_mode is not None:
+        status_mode = cli_config.status_mode
+    else:
+        status_mode = "validated"
+
+    fallback_weeks = (
+        cli_inputs.fallback_weeks
+        if cli_inputs.fallback_weeks is not None
+        else cli_config.fallback_weeks if cli_config.fallback_weeks is not None else 1
+    )
+    strict = (
+        cli_inputs.strict
+        if cli_inputs.strict is not None
+        else cli_config.strict if cli_config.strict is not None else False
+    )
+
+    return ResolvedCliOptions(
+        debug=cli_inputs.debug or cli_config.debug is True,
+        output=cli_inputs.output or cli_config.output,
+        email_recipient=(
+            cli_inputs.email_to
+            if cli_inputs.email_to is not None
+            else cli_config.email_to
+        ),
+        query=PlanningQuery(
+            ward_name=(
+                cli_inputs.ward if cli_inputs.ward is not None else cli_config.ward
+            ),
+            parish_name=(
+                cli_inputs.parish
+                if cli_inputs.parish is not None
+                else cli_config.parish
+            ),
+            requested_week=(
+                cli_inputs.week if cli_inputs.week is not None else cli_config.week
+            ),
+            fallback_weeks=max(0, fallback_weeks),
+            strict=strict,
+            status_mode=status_mode,
+        ),
+    )

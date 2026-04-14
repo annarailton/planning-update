@@ -17,8 +17,8 @@ from email_sender import (
     send_resend_email,
 )
 from html_render import build_search_criteria, render_application_html
-from models import Application, ApplicationSection, CliInputs, CliStatusMode
-from scraper import fetch_applications_for_query, merge_applications
+from models import CliInputs, CliStatusMode
+from report_service import build_planning_report
 
 app = typer.Typer(
     add_completion=False,
@@ -96,6 +96,7 @@ def run(
         format="%(asctime)s %(message)s",
     )
 
+    # Load config & resolve options
     try:
         cli_config = load_cli_config(path=config)
     except (FileNotFoundError, ValidationError, ValueError) as exc:
@@ -119,26 +120,9 @@ def run(
         typer.secho(f"Error: {exc}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
-    section_titles = {
-        "validated": "Validated applications",
-        "decided": "Decided applications",
-    }
-    applications_by_status: dict[str, list[Application]] = {
-        "validated": [],
-        "decided": [],
-    }
-
-    # Run queries and put in the right section
+    # Fetch the report data and build the report
     try:
-        for query in options.queries:
-            section_applications = fetch_applications_for_query(
-                query=query,
-                debug=options.debug,
-            )
-            applications_by_status[query.status_mode] = merge_applications(
-                applications_by_status[query.status_mode],
-                section_applications,
-            )
+        report = build_planning_report(options=options)
     except (ValueError, ValidationError) as exc:
         typer.secho(f"Error: {exc}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
@@ -146,22 +130,7 @@ def run(
         typer.secho(f"Request failed: {exc}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
-    sections = [
-        ApplicationSection(
-            title=section_titles[status_mode],
-            applications=applications_by_status[status_mode],
-            empty_state_message=(
-                "No applications"
-                if options.status_mode == "both" or status_mode == options.status_mode
-                else "Not searched"
-            ),
-        )
-        for status_mode in ["validated", "decided"]
-    ]
-    applications = (
-        applications_by_status["validated"] + applications_by_status["decided"]
-    )
-
+    # Render the report to HTML and build the plain text email content
     generated_at = datetime.now()
     output_path = build_default_output_path(generated_at=generated_at)
     search_criteria = build_search_criteria(
@@ -169,26 +138,27 @@ def run(
         status_mode=options.status_mode,
     )
     html_output = render_application_html(
-        applications,
-        sections=sections,
+        report.applications,
+        sections=report.sections,
         search_criteria=search_criteria,
     )
 
-    typer.echo(f"Found {len(applications)} applications.")
+    typer.echo(f"Found {len(report.applications)} applications.")
 
-    # We don't send and email and dump results to HTML in debug mode
+    # We don't send an email and instead dump results to HTML in debug mode
     if options.debug:
         output_path.write_text(html_output, encoding="utf-8")
         typer.echo(f"Saved HTML output to {output_path}")
         return
 
+    # Send the report via email
     if options.email_recipient:
         subject = build_email_subject(
             week=options.queries[0].requested_week,
         )
         text_output = build_plain_text_email(
-            applications=applications,
-            sections=sections,
+            applications=report.applications,
+            sections=report.sections,
             generated_at=generated_at,
             search_criteria=search_criteria,
         )

@@ -4,7 +4,7 @@ import re
 from datetime import date, datetime
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from location_lookup import (
     PARISH_CODE_TO_NAME,

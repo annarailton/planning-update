@@ -2,6 +2,7 @@
 
 import tomllib
 from pathlib import Path
+from typing import Any
 
 from models import (
     CliConfig,
@@ -9,6 +10,30 @@ from models import (
     PlanningQuery,
     ResolvedCliOptions,
 )
+
+
+def parse_keywords(value: Any) -> list[str]:
+    """Parse keyword config values into a normalized lowercase list."""
+    if value is None:
+        return []
+
+    parts: list[str]
+    if isinstance(value, str):
+        parts = value.split(",")
+    elif isinstance(value, list):
+        parts = [str(item) for item in value]
+    else:
+        raise TypeError("keywords must be provided as a comma-delimited string or list")
+
+    normalized_keywords: list[str] = []
+    seen: set[str] = set()
+    for part in parts:
+        keyword = part.strip().lower()
+        if not keyword or keyword in seen:
+            continue
+        seen.add(keyword)
+        normalized_keywords.append(keyword)
+    return normalized_keywords
 
 
 def load_cli_config(path: Path | None = None) -> CliConfig:
@@ -41,8 +66,14 @@ def resolve_cli_options(
         requested_week=(
             cli_inputs.week if cli_inputs.week is not None else cli_config.week
         ),
+        keywords=parse_keywords(
+            cli_inputs.keywords if cli_inputs.keywords is not None else cli_config.keywords
+        ),
         status_mode="validated",
     )
+
+    if base_query.keywords:
+        status_mode = "both"
 
     queries = [base_query.model_copy(update={"status_mode": status_mode})]
     if status_mode == "both":

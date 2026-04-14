@@ -4,7 +4,14 @@ from datetime import date
 
 import pytest
 
-from models import Application, ApplicationRef, PlanningQuery
+from config import resolve_cli_options
+from models import (
+    Application,
+    ApplicationRef,
+    CliConfig,
+    CliInputs,
+    PlanningQuery,
+)
 
 
 @pytest.mark.parametrize(
@@ -99,3 +106,57 @@ def test_planning_query_selected_week_uses_latest_available_week() -> None:
     query = PlanningQuery()
 
     assert query.selected_week(["06 Apr 2026", "30 Mar 2026"]) == "06 Apr 2026"
+
+
+def test_planning_query_keyword_mode_ignores_ward_and_parish_filters() -> None:
+    """Keyword matching should search across all wards and parishes."""
+    query = PlanningQuery(
+        ward_name="churchill",
+        parish_name="littlemore",
+        keywords=["pv", "heat pump"],
+    )
+
+    assert query.build_search_payload(
+        csrf_token="token-123",
+        week="30 Mar 2026",
+    ) == {
+        "_csrf": "token-123",
+        "searchCriteria.parish": "",
+        "searchCriteria.ward": "",
+        "week": "30 Mar 2026",
+        "dateType": "DC_Validated",
+        "searchType": "Application",
+    }
+
+
+def test_planning_query_matching_keywords_returns_lowercase_matches() -> None:
+    """Keyword matching should return normalized lowercase keyword hits."""
+    query = PlanningQuery(keywords=["photovoltaics", "heat pump", "ashp", "pv"])
+
+    assert query.matching_keywords(
+        "New PV array and ASHP with rooftop photovoltaics"
+    ) == ["photovoltaics", "ashp", "pv"]
+
+
+def test_cli_keyword_inputs_are_parsed_from_comma_delimited_strings() -> None:
+    """CLI config/input models should preserve raw keyword values until resolved."""
+    cli_inputs = CliInputs(keywords="photovoltaics, heat pump, ASHP, PV")
+    cli_config = CliConfig(keywords="photovoltaics, heat pump, ASHP, PV")
+
+    assert cli_inputs.keywords == "photovoltaics, heat pump, ASHP, PV"
+    assert cli_config.keywords == "photovoltaics, heat pump, ASHP, PV"
+
+
+def test_resolve_cli_options_forces_both_statuses_for_keyword_queries() -> None:
+    """Keyword searches should aggregate validated and decided results."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(status="decided", keywords="pv, ashp"),
+        cli_config=CliConfig(),
+    )
+
+    assert options.status_mode == "both"
+    assert options.queries[0].keywords == ["pv", "ashp"]
+    assert [query.status_mode for query in options.queries] == [
+        "validated",
+        "decided",
+    ]

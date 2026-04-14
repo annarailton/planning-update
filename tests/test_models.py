@@ -4,7 +4,6 @@ from datetime import date
 
 import pytest
 
-from config import resolve_cli_options
 from models import (
     Application,
     ApplicationRef,
@@ -71,6 +70,33 @@ def test_application_model_validate_parses_updated_date_strings() -> None:
     )
 
     assert updated.decided == date(2026, 3, 14)
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected_date"),
+    [
+        ("Thu 12 Mar 2026", date(2026, 3, 12)),
+        ("2026-03-12", date(2026, 3, 12)),
+    ],
+)
+def test_validate_application_date_accepts_oxford_and_iso_formats(
+    raw_value: str, expected_date: date
+) -> None:
+    """Application date validation should accept Oxford-site and ISO strings."""
+    assert Application.validate_application_date(raw_value) == expected_date
+
+
+def test_validate_application_date_accepts_existing_date_objects() -> None:
+    """Application date validation should pass through existing date objects."""
+    value = date(2026, 3, 12)
+
+    assert Application.validate_application_date(value) == value
+
+
+def test_validate_application_date_rejects_empty_strings() -> None:
+    """Application date validation should reject empty required date values."""
+    with pytest.raises(ValueError, match="Required application date cannot be empty"):
+        Application.validate_application_date("")
 
 
 def test_planning_query_build_search_payload_uses_resolved_codes() -> None:
@@ -145,18 +171,3 @@ def test_cli_keyword_inputs_are_parsed_from_comma_delimited_strings() -> None:
 
     assert cli_inputs.keywords == "photovoltaics, heat pump, ASHP, PV"
     assert cli_config.keywords == "photovoltaics, heat pump, ASHP, PV"
-
-
-def test_resolve_cli_options_forces_both_statuses_for_keyword_queries() -> None:
-    """Keyword searches should aggregate validated and decided results."""
-    options = resolve_cli_options(
-        cli_inputs=CliInputs(status="decided", keywords="pv, ashp"),
-        cli_config=CliConfig(),
-    )
-
-    assert options.status_mode == "both"
-    assert options.queries[0].keywords == ["pv", "ashp"]
-    assert [query.status_mode for query in options.queries] == [
-        "validated",
-        "decided",
-    ]

@@ -83,6 +83,11 @@ class Application(BaseModel):
 
         Returns:
             The validated application date, or ``None`` for empty optional values.
+
+        Supported input formats:
+        - Oxford site strings like ``Thu 12 Mar 2026`` from scraped HTML
+        - ISO strings like ``2026-03-12`` from cached JSON
+        - Existing ``date`` objects from internal model updates
         """
         if v is None:
             return None
@@ -90,7 +95,11 @@ class Application(BaseModel):
             return v
         if not v.strip():
             raise ValueError("Required application date cannot be empty")
-        return datetime.strptime(v, "%a %d %b %Y").date()
+        try:
+            # Oxford site format, for example "Thu 12 Mar 2026".
+            return datetime.strptime(v, "%a %d %b %Y").date()
+        except ValueError:
+            return date.fromisoformat(v)
 
 
 class PlanningQuery(BaseModel):

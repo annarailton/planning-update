@@ -57,6 +57,7 @@ Example:
 
 ```bash
 uv run oxford-weekly
+uv run oxford-weekly --debug
 uv run oxford-weekly --parish "Littlemore"
 uv run oxford-weekly --ward "churchill"
 uv run oxford-weekly --week "30 Mar 2026"
@@ -68,4 +69,40 @@ python main.py --ward "churchill" --parish "Littlemore"
 python main.py --week "30 Mar 2026"
 python main.py --decided
 python main.py --strict
+```
+
+## Config file
+
+The CLI can load default option values from `planning_update.toml` in the current
+working directory, or from an explicit path passed with `--config`.
+
+CLI flags still win over config values, so this works well for keeping your usual
+ward, mode, email recipient, and fallback settings in one place.
+
+Example:
+
+```toml
+debug = true
+ward = "churchill"
+parish = "Littlemore"
+status_mode = "validated"
+fallback_weeks = 1
+strict = false
+email_to = "example@gmail.com"
+```
+
+You can also nest the same values under `[cli]` if you prefer:
+
+```toml
+[cli]
+ward = "churchill"
+status_mode = "decided"
+```
+
+Examples with config:
+
+```bash
+uv run oxford-weekly --debug --output latest.html
+uv run oxford-weekly --config /path/to/planning_update.toml --decided
+python main.py --config planning_update.toml --no-strict
 ```

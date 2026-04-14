@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from config import load_cli_config, parse_keywords
+from config import load_cli_config, parse_keywords, resolve_cli_options
+from models import CliConfig, CliInputs, PlanningQuery
 
 
 def test_load_cli_config_reads_top_level_values(tmp_path: Path) -> None:
@@ -82,3 +83,75 @@ def test_parse_keywords_rejects_invalid_types() -> None:
     """Keyword parsing should reject unsupported input types."""
     with pytest.raises(TypeError, match="keywords must be provided"):
         parse_keywords(123)
+
+
+def test_resolve_cli_options_defaults_keyword_queries_to_both_statuses() -> None:
+    """Keyword searches should use the default both-mode when no status is set."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(keywords="pv, ashp"),
+        cli_config=CliConfig(),
+    )
+
+    assert options.status_mode == "both"
+    assert options.queries == [
+        PlanningQuery(keywords=["pv", "ashp"], status_mode="validated"),
+        PlanningQuery(keywords=["pv", "ashp"], status_mode="decided"),
+    ]
+
+
+def test_resolve_cli_options_builds_keyword_and_ward_queries_for_both_statuses() -> (
+    None
+):
+    """Keyword-plus-ward searches should query both scopes for both statuses."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(
+            ward="Hinksey Park",
+            status="both",
+            keywords="photovoltaics, heat pump, ASHP, PV, solar panels",
+        ),
+        cli_config=CliConfig(),
+    )
+
+    assert options.status_mode == "both"
+    assert options.queries == [
+        PlanningQuery(
+            ward_name="Hinksey Park",
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            keywords=["photovoltaics", "heat pump", "ashp", "pv", "solar panels"],
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            ward_name="Hinksey Park",
+            status_mode="decided",
+        ),
+        PlanningQuery(
+            keywords=["photovoltaics", "heat pump", "ashp", "pv", "solar panels"],
+            status_mode="decided",
+        ),
+    ]
+
+
+def test_resolve_cli_options_applies_explicit_status_to_keyword_queries() -> None:
+    """An explicit status should apply to keyword and location scopes alike."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(
+            ward="Hinksey Park",
+            status="decided",
+            keywords="photovoltaics, heat pump",
+        ),
+        cli_config=CliConfig(),
+    )
+
+    assert options.status_mode == "decided"
+    assert options.queries == [
+        PlanningQuery(
+            ward_name="Hinksey Park",
+            status_mode="decided",
+        ),
+        PlanningQuery(
+            keywords=["photovoltaics", "heat pump"],
+            status_mode="decided",
+        ),
+    ]

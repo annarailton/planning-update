@@ -76,14 +76,6 @@ def run(
             help="Exact week value from the dropdown, for example '30 Mar 2026'."
         ),
     ] = None,
-    output: Annotated[
-        Path | None,
-        typer.Option(
-            help="Optional path for the debug HTML output file.",
-            dir_okay=False,
-            writable=True,
-        ),
-    ] = None,
     email_to: Annotated[
         str | None,
         typer.Option(
@@ -108,7 +100,6 @@ def run(
                 parish=parish,
                 status=status,
                 week=week,
-                output=output,
                 email_to=email_to,
             ),
             cli_config=cli_config,
@@ -145,7 +136,7 @@ def run(
         raise typer.Exit(code=1) from exc
 
     generated_at = datetime.now()
-    output_path = options.output or build_default_output_path(generated_at=generated_at)
+    output_path = build_default_output_path(generated_at=generated_at)
     search_criteria = build_search_criteria(
         query=options.queries[0],
         status_mode=options.status_mode,

@@ -2,7 +2,6 @@
 
 import re
 from datetime import date, datetime
-from pathlib import Path
 from typing import ClassVar, Literal
 
 from pydantic import BaseModel, field_validator
@@ -189,7 +188,6 @@ class CliConfig(BaseModel):
     parish: str | None = None
     status_mode: CliStatusMode | None = None
     week: str | None = None
-    output: Path | None = None
     email_to: str | None = None
 
 
@@ -201,7 +199,6 @@ class CliInputs(BaseModel):
     parish: str | None = None
     status: CliStatusMode | None = None
     week: str | None = None
-    output: Path | None = None
     email_to: str | None = None
 
 
@@ -209,7 +206,6 @@ class ResolvedCliOptions(BaseModel):
     """Fully resolved runtime options derived from CLI inputs and config."""
 
     debug: bool = False
-    output: Path | None = None
     email_recipient: str | None = None
     status_mode: CliStatusMode = "validated"
     queries: list[PlanningQuery]

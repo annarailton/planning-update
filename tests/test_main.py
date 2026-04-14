@@ -28,6 +28,11 @@ def test_cli_writes_html_output_file(
     )
 
     output_path = tmp_path / "applications.html"
+    monkeypatch.setattr(
+        main,
+        "build_default_output_path",
+        lambda *, generated_at: output_path,
+    )
     result = runner.invoke(
         main.app,
         [
@@ -36,8 +41,6 @@ def test_cli_writes_html_output_file(
             "churchill",
             "--status",
             "decided",
-            "--output",
-            str(output_path),
         ],
     )
 
@@ -72,7 +75,7 @@ def test_cli_does_not_write_html_output_without_debug(
     output_path = tmp_path / "applications.html"
     result = runner.invoke(
         main.app,
-        ["--output", str(output_path)],
+        ["--status", "both"],
         catch_exceptions=False,
     )
 
@@ -95,9 +98,14 @@ def test_cli_debug_writes_html_output_when_no_applications(
     )
 
     output_path = tmp_path / "applications.html"
+    monkeypatch.setattr(
+        main,
+        "build_default_output_path",
+        lambda *, generated_at: output_path,
+    )
     result = runner.invoke(
         main.app,
-        ["--debug", "--output", str(output_path)],
+        ["--debug"],
         catch_exceptions=False,
     )
 
@@ -177,7 +185,7 @@ def test_cli_sends_email_via_resend(
     output_path = tmp_path / "applications.html"
     result = runner.invoke(
         main.app,
-        ["--email-to", "test@example.com", "--output", str(output_path)],
+        ["--email-to", "test@example.com"],
     )
 
     assert result.exit_code == 0
@@ -208,14 +216,17 @@ def test_cli_debug_mode_skips_email_and_writes_file(
     monkeypatch.setattr(main, "send_resend_email", fail_send_resend_email)
 
     output_path = tmp_path / "applications.html"
+    monkeypatch.setattr(
+        main,
+        "build_default_output_path",
+        lambda *, generated_at: output_path,
+    )
     result = runner.invoke(
         main.app,
         [
             "--debug",
             "--email-to",
             "test@example.com",
-            "--output",
-            str(output_path),
         ],
     )
 
@@ -241,9 +252,14 @@ def test_cli_both_status_renders_two_sections(
     )
 
     output_path = tmp_path / "applications.html"
+    monkeypatch.setattr(
+        main,
+        "build_default_output_path",
+        lambda *, generated_at: output_path,
+    )
     result = runner.invoke(
         main.app,
-        ["--debug", "--status", "both", "--output", str(output_path)],
+        ["--debug", "--status", "both"],
         catch_exceptions=False,
     )
 
@@ -270,9 +286,14 @@ def test_cli_both_status_renders_two_empty_sections(
     )
 
     output_path = tmp_path / "applications.html"
+    monkeypatch.setattr(
+        main,
+        "build_default_output_path",
+        lambda *, generated_at: output_path,
+    )
     result = runner.invoke(
         main.app,
-        ["--debug", "--status", "both", "--output", str(output_path)],
+        ["--debug", "--status", "both"],
         catch_exceptions=False,
     )
 
@@ -312,9 +333,14 @@ def test_cli_uses_explicit_config_file(
         main, "fetch_latest_applications", fake_fetch_latest_applications
     )
     output_path = tmp_path / "planning_applications.html"
+    monkeypatch.setattr(
+        main,
+        "build_default_output_path",
+        lambda *, generated_at: output_path,
+    )
     result = runner.invoke(
         main.app,
-        ["--config", str(config_path), "--debug", "--output", str(output_path)],
+        ["--config", str(config_path), "--debug"],
         catch_exceptions=False,
     )
 
@@ -333,7 +359,6 @@ def test_cli_arguments_override_config(
             [
                 'ward = "churchill"',
                 'status_mode = "validated"',
-                'output = "from-config.html"',
                 'email_to = "config@example.com"',
             ]
         ),
@@ -375,8 +400,6 @@ def test_cli_arguments_override_config(
             "marston",
             "--status",
             "decided",
-            "--output",
-            str(output_path),
             "--email-to",
             "cli@example.com",
         ],

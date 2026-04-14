@@ -24,12 +24,7 @@ def load_cli_config(path: Path | None = None) -> CliConfig:
         raw_config = tomllib.load(config_file)
 
     config_values = raw_config.get("cli", raw_config)
-    config = CliConfig.model_validate(config_values)
-
-    if config.output is not None and not config.output.is_absolute():
-        config.output = (config_path.parent / config.output).resolve()
-
-    return config
+    return CliConfig.model_validate(config_values)
 
 
 def resolve_cli_options(
@@ -58,7 +53,6 @@ def resolve_cli_options(
 
     return ResolvedCliOptions(
         debug=cli_inputs.debug or cli_config.debug is True,
-        output=cli_inputs.output or cli_config.output,
         email_recipient=(
             cli_inputs.email_to
             if cli_inputs.email_to is not None

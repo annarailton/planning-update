@@ -99,7 +99,7 @@ status_mode = "decided"
 Examples with config:
 
 ```bash
-uv run oxford-weekly --config planning_update.toml --debug --output latest.html
+uv run oxford-weekly --config planning_update.toml --debug
 uv run oxford-weekly --config /path/to/planning_update.toml --status decided
 python main.py --config planning_update.toml
 ```

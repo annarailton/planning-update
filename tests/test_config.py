@@ -16,7 +16,6 @@ def test_load_cli_config_reads_top_level_values(tmp_path: Path) -> None:
                 'parish = "Littlemore"',
                 'status_mode = "decided"',
                 'week = "30 Mar 2026"',
-                'output = "emails/applications.html"',
                 'email_to = "anna@example.com"',
             ]
         ),
@@ -30,7 +29,6 @@ def test_load_cli_config_reads_top_level_values(tmp_path: Path) -> None:
     assert config.parish == "Littlemore"
     assert config.status_mode == "decided"
     assert config.week == "30 Mar 2026"
-    assert config.output == (tmp_path / "emails" / "applications.html").resolve()
     assert config.email_to == "anna@example.com"
 
 

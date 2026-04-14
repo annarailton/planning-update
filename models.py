@@ -247,3 +247,10 @@ class ApplicationSection(BaseModel):
     title: str
     applications: list[Application]
     empty_state_message: str = "No applications"
+
+
+class PlanningReport(BaseModel):
+    """Aggregated applications and sections ready for rendering."""
+
+    applications: list[Application]
+    sections: list[ApplicationSection]

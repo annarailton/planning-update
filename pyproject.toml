@@ -20,7 +20,7 @@ dependencies = [
 oxford-weekly = "main:main"
 
 [tool.setuptools]
-py-modules = ["constants", "email_sender", "html_render", "location_lookup", "main", "models", "parser", "scraper"]
+py-modules = ["config", "constants", "email_sender", "html_render", "location_lookup", "main", "models", "parser", "scraper"]
 
 [tool.setuptools.data-files]
 "" = ["ward_mappings.json"]

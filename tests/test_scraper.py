@@ -2,8 +2,12 @@
 
 from collections.abc import Callable
 
+import requests
+
 from models import Application, PlanningQuery
 from scraper import (
+    collect_result_applications,
+    fetch_latest_applications,
     fetch_latest_applications_cached,
     filter_applications_by_keywords,
     load_cached_applications,
@@ -68,3 +72,42 @@ def test_fetch_latest_applications_cached_reuses_saved_results(
     assert first == applications
     assert second == applications
     assert fetch_calls == 1
+
+
+def test_fetch_latest_applications_only_enriches_keyword_matches(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Keyword searches should enrich only the applications that match by proposal."""
+    seen_refs: list[str] = []
+
+    monkeypatch.setattr(
+        "scraper.collect_result_applications",
+        lambda session, *, query: [
+            application_factory(
+                application_ref={"value": "26/00281/FUL"},
+                proposal="Install ASHP and rooftop PV",
+            ),
+            application_factory(
+                application_ref={"value": "26/00282/FUL"},
+                proposal="Rear extension",
+            ),
+        ],
+    )
+
+    def fake_enrich_application(
+        session: requests.Session, application: Application
+    ) -> Application:
+        seen_refs.append(application.application_ref.value)
+        return application
+
+    monkeypatch.setattr("scraper.enrich_application", fake_enrich_application)
+
+    applications = fetch_latest_applications(
+        PlanningQuery(keywords=["heat pump", "ashp", "pv"])
+    )
+
+    assert [application.application_ref.value for application in applications] == [
+        "26/00281/FUL"
+    ]
+    assert applications[0].keyword_matches == ["ashp", "pv"]
+    assert seen_refs == ["26/00281/FUL"]

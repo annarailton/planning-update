@@ -150,7 +150,7 @@ def enrich_application(
 def filter_applications_by_keywords(
     applications: list[Application], *, query: PlanningQuery
 ) -> list[Application]:
-    """Filter applications to proposal keyword matches when configured."""
+    """Filter result-card applications to proposal keyword matches when configured."""
     if not query.uses_keyword_matching():
         return applications
 
@@ -167,18 +167,10 @@ def filter_applications_by_keywords(
     return matched_applications
 
 
-def fetch_latest_applications(query: PlanningQuery) -> list[Application]:
-    """Fetch applications for the selected or latest available week.
-
-    Args:
-        query: User-facing query options for the weekly list search.
-
-    Returns:
-        list of Applications
-    """
-    session = requests.Session()
-    session.headers.update({"User-Agent": "planning-update/0.1"})
-
+def collect_result_applications(
+    session: requests.Session, *, query: PlanningQuery
+) -> list[Application]:
+    """Collect applications from the weekly-list results pages before enrichment."""
     csrf_token, weeks = fetch_form(session)
     week = query.selected_week(weeks)
     html, page_url = fetch_results_page(
@@ -191,6 +183,24 @@ def fetch_latest_applications(query: PlanningQuery) -> list[Application]:
     for pagination_url in extract_pagination_urls(html, page_url):
         next_html, next_page_url = fetch_page(session, pagination_url)
         applications.extend(extract_applications(next_html, week, next_page_url))
+    return applications
+
+
+def fetch_latest_applications(query: PlanningQuery) -> list[Application]:
+    """Fetch applications for the selected or latest available week.
+
+    Args:
+        query: User-facing query options for the weekly list search.
+
+    Returns:
+        list of Applications
+    """
+    session = requests.Session()
+    session.headers.update({"User-Agent": "planning-update/0.1"})
+
+    # Proposal text is available on the weekly-list result cards, so keyword
+    # matching happens before we hit individual application pages for enrichment.
+    applications = collect_result_applications(session, query=query)
     applications = filter_applications_by_keywords(applications, query=query)
     return [enrich_application(session, application) for application in applications]
 

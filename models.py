@@ -2,6 +2,7 @@
 
 import re
 from datetime import date, datetime
+from pathlib import Path
 from typing import ClassVar, Literal
 
 from pydantic import BaseModel, field_validator
@@ -179,3 +180,51 @@ class PlanningQuery(BaseModel):
             ),
             "searchType": "Application",
         }
+
+
+class CliConfig(BaseModel):
+    """Optional CLI defaults loaded from TOML."""
+
+    debug: bool | None = None
+    ward: str | None = None
+    parish: str | None = None
+    status_mode: ApplicationStatusMode | None = None
+    week: str | None = None
+    fallback_weeks: int | None = None
+    strict: bool | None = None
+    output: Path | None = None
+    email_to: str | None = None
+
+    @field_validator("fallback_weeks")
+    @classmethod
+    def validate_fallback_weeks(cls, value: int | None) -> int | None:
+        """Ensure configured fallback weeks are non-negative."""
+        if value is None:
+            return None
+        if value < 0:
+            raise ValueError("fallback_weeks must be greater than or equal to 0")
+        return value
+
+
+class CliInputs(BaseModel):
+    """Raw CLI inputs before config defaults are applied."""
+
+    debug: bool = False
+    ward: str | None = None
+    parish: str | None = None
+    validated: bool | None = None
+    decided: bool | None = None
+    week: str | None = None
+    fallback_weeks: int | None = None
+    strict: bool | None = None
+    output: Path | None = None
+    email_to: str | None = None
+
+
+class ResolvedCliOptions(BaseModel):
+    """Fully resolved runtime options derived from CLI inputs and config."""
+
+    debug: bool = False
+    output: Path | None = None
+    email_recipient: str | None = None
+    query: PlanningQuery

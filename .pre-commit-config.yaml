@@ -6,9 +6,6 @@ repos:
       # Run the linter, including isort-style import ordering and docstrings.
       - id: ruff-check
         args: ["--fix", "--select", "I,D"]
-      # Run the formatter.
-      - id: ruff-format
-        types_or: [python, pyi]
   - repo: https://github.com/psf/black
     rev: 24.10.0
     hooks:

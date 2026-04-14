@@ -13,6 +13,7 @@ WEEKLY_LIST_URL = (
 )
 RESULTS_URL = "https://public.oxford.gov.uk/online-applications/weeklyListResults.do?action=firstPage"
 DEFAULT_TIMEOUT_SECONDS = 30
+SCRAPER_CACHE_DIR = Path(".cache/planning-update")
 
 # Email stuff
 RESEND_EMAILS_URL = "https://api.resend.com/emails"

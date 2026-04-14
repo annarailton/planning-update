@@ -25,6 +25,7 @@ htmlcov/
 # Tooling caches
 .mypy_cache/
 .ruff_cache/
+.cache/
 
 # Local generated output
 *_planning_applications.html

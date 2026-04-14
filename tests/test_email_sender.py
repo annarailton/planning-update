@@ -3,6 +3,8 @@
 from collections.abc import Callable
 from datetime import datetime
 
+import requests
+
 import email_sender
 from models import Application
 
@@ -42,3 +44,33 @@ def test_build_idempotency_key_is_stable_for_same_payload() -> None:
 
     assert first == second
     assert first.startswith("planning-update/")
+
+
+def test_send_resend_email_raises_helpful_403_error(monkeypatch) -> None:
+    """403 errors from Resend should mention sender domain verification."""
+
+    class FakeResponse:
+        status_code = 403
+        text = '{"message":"You can only send from verified domains"}'
+
+        def raise_for_status(self) -> None:
+            raise requests.HTTPError("403 Client Error", response=self)
+
+    monkeypatch.setattr(
+        email_sender.requests, "post", lambda *args, **kwargs: FakeResponse()
+    )
+
+    try:
+        email_sender.send_resend_email(
+            api_key="re_test_key",
+            recipient="test@example.com",
+            subject="Subject",
+            html="<p>Hello</p>",
+            text="Hello",
+            sender="anna@railton.dev",
+        )
+    except ValueError as exc:
+        assert "sender domain is not verified" in str(exc)
+        assert "anna@railton.dev" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for 403 response")

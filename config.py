@@ -41,7 +41,7 @@ def resolve_cli_options(
     *, cli_inputs: CliInputs, cli_config: CliConfig
 ) -> ResolvedCliOptions:
     """Merge raw CLI inputs with config defaults into runtime options."""
-    status_mode = cli_inputs.status or cli_config.status_mode or "validated"
+    status_mode = cli_inputs.status or cli_config.status_mode or "both"
 
     fallback_weeks = (
         cli_inputs.fallback_weeks

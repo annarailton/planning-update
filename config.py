@@ -67,7 +67,9 @@ def resolve_cli_options(
             cli_inputs.week if cli_inputs.week is not None else cli_config.week
         ),
         keywords=parse_keywords(
-            cli_inputs.keywords if cli_inputs.keywords is not None else cli_config.keywords
+            cli_inputs.keywords
+            if cli_inputs.keywords is not None
+            else cli_config.keywords
         ),
         status_mode="validated",
     )

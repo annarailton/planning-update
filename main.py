@@ -76,6 +76,13 @@ def run(
             help="Exact week value from the dropdown, for example '30 Mar 2026'."
         ),
     ] = None,
+    keywords: Annotated[
+        str | None,
+        typer.Option(
+            "--keywords",
+            help="Comma-delimited proposal keywords to match across all wards and parishes.",
+        ),
+    ] = None,
     email_to: Annotated[
         str | None,
         typer.Option(
@@ -100,6 +107,7 @@ def run(
                 parish=parish,
                 status=status,
                 week=week,
+                keywords=keywords,
                 email_to=email_to,
             ),
             cli_config=cli_config,

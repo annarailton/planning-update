@@ -161,6 +161,7 @@ def test_render_application_html_shows_search_criteria_in_header(
                 "Parish": "All parishes",
                 "Mode": "Decided in this week",
                 "Week": "30 Mar 2026",
+                "Keywords": "photovoltaics, heat pump",
             },
         )
     finally:
@@ -173,6 +174,20 @@ def test_render_application_html_shows_search_criteria_in_header(
     assert "Churchill" in html
     assert "Mode:" in html
     assert "Decided in this week" in html
+    assert "Keywords:" in html
+    assert "photovoltaics, heat pump" in html
+
+
+def test_render_application_html_shows_keyword_matches(
+    application_factory: Callable[..., Application],
+) -> None:
+    """The HTML output should show matched proposal keywords when present."""
+    html = html_render.render_application_html(
+        [application_factory(keyword_matches=["heat pump", "pv"])]
+    )
+
+    assert "Keyword match" in html
+    assert "heat pump, pv" in html
 
 
 def test_render_application_html_shows_empty_card_for_empty_results() -> None:

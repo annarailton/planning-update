@@ -60,6 +60,53 @@ def test_cli_writes_html_output_file(
     assert "View application" in html
 
 
+def test_cli_keywords_are_passed_to_query_and_rendered(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path: Path
+) -> None:
+    """CLI should pass comma-delimited keywords into the query and HTML output."""
+    seen_modes: list[str] = []
+
+    def fake_fetch_latest_applications(query: PlanningQuery) -> list[Application]:
+        seen_modes.append(query.status_mode)
+        assert query.keywords == ["photovoltaics", "heat pump", "ashp", "pv"]
+        return [
+            application_factory(
+                keyword_matches=["ashp", "pv"],
+                application_ref={"value": "26/00281/FUL"},
+            )
+        ]
+
+    monkeypatch.setattr(
+        main, "fetch_latest_applications", fake_fetch_latest_applications
+    )
+
+    output_path = tmp_path / "applications.html"
+    monkeypatch.setattr(
+        main,
+        "build_default_output_path",
+        lambda *, generated_at: output_path,
+    )
+    result = runner.invoke(
+        main.app,
+        [
+            "--debug",
+            "--keywords",
+            "photovoltaics, heat pump, ASHP, PV",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert seen_modes == ["validated", "decided"]
+    html = output_path.read_text(encoding="utf-8")
+    assert "Keywords" in html
+    assert "photovoltaics, heat pump, ashp, pv" in html
+    assert "Validated applications" in html
+    assert "Decided applications" in html
+    assert "Keyword match" in html
+    assert "ashp, pv" in html
+
+
 def test_cli_does_not_write_html_output_without_debug(
     application_factory: Callable[..., Application], monkeypatch, tmp_path: Path
 ) -> None:

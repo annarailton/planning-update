@@ -140,6 +140,26 @@ def enrich_application(
     )
 
 
+def filter_applications_by_keywords(
+    applications: list[Application], *, query: PlanningQuery
+) -> list[Application]:
+    """Filter applications to proposal keyword matches when configured."""
+    if not query.uses_keyword_matching():
+        return applications
+
+    matched_applications: list[Application] = []
+    for application in applications:
+        keyword_matches = query.matching_keywords(application.proposal)
+        if not keyword_matches:
+            continue
+        matched_applications.append(
+            Application.model_validate(
+                application.model_dump() | {"keyword_matches": keyword_matches}
+            )
+        )
+    return matched_applications
+
+
 def fetch_latest_applications(query: PlanningQuery) -> list[Application]:
     """Fetch applications for the selected or latest available week.
 
@@ -164,4 +184,5 @@ def fetch_latest_applications(query: PlanningQuery) -> list[Application]:
     for pagination_url in extract_pagination_urls(html, page_url):
         next_html, next_page_url = fetch_page(session, pagination_url)
         applications.extend(extract_applications(next_html, week, next_page_url))
+    applications = filter_applications_by_keywords(applications, query=query)
     return [enrich_application(session, application) for application in applications]

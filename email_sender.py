@@ -38,15 +38,21 @@ def build_plain_text_email(
 
     def append_application_details(section_applications: list[Application]) -> None:
         for application in section_applications:
-            lines.extend(
+            details = [
+                "",
+                application.application_ref.value,
+                application.proposal,
+                application.address,
+                f"Ward: {application.ward or 'Not provided'}",
+                f"Received: {application.received.isoformat()}",
+                f"Validated: {application.validated.isoformat()}",
+            ]
+            if application.keyword_matches:
+                details.append(
+                    f"Keyword match: {', '.join(application.keyword_matches)}"
+                )
+            details.extend(
                 [
-                    "",
-                    application.application_ref.value,
-                    application.proposal,
-                    application.address,
-                    f"Ward: {application.ward or 'Not provided'}",
-                    f"Received: {application.received.isoformat()}",
-                    f"Validated: {application.validated.isoformat()}",
                     f"Status: {application.status or 'Not provided'}",
                     (
                         "Consultation deadline: "
@@ -64,6 +70,7 @@ def build_plain_text_email(
                     f"View application: {application.url}",
                 ]
             )
+            lines.extend(details)
 
     if sections:
         for section in sections:

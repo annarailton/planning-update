@@ -64,6 +64,7 @@ class Application(BaseModel):
     determination_deadline: date | None = None
     status: str | None = None
     decision: str | None = None
+    keyword_matches: list[str] | None = None
 
     @field_validator(
         "received",
@@ -101,7 +102,12 @@ class PlanningQuery(BaseModel):
     ward_name: str | None = None
     parish_name: str | None = None
     requested_week: str | None = None
+    keywords: list[str] = Field(default_factory=list)
     status_mode: ApplicationStatusMode = "validated"
+
+    def uses_keyword_matching(self) -> bool:
+        """Return whether this query should apply proposal keyword matching."""
+        return bool(self.keywords)
 
     def resolve_ward_code(self) -> str:
         """Resolve the configured ward name to an Oxford ward code.
@@ -109,6 +115,8 @@ class PlanningQuery(BaseModel):
         Returns:
             The resolved ward code, or an empty string for all wards.
         """
+        if self.uses_keyword_matching():
+            return ""
         if self.ward_name is None:
             return ""
         return resolve_ward_code(self.ward_name)
@@ -119,6 +127,8 @@ class PlanningQuery(BaseModel):
         Returns:
             The resolved parish code, or an empty string for all parishes.
         """
+        if self.uses_keyword_matching():
+            return ""
         if self.parish_name is None:
             return ""
         return resolve_parish_code(self.parish_name)
@@ -129,6 +139,8 @@ class PlanningQuery(BaseModel):
         Returns:
             The canonical ward name, or ``All wards`` when no ward is set.
         """
+        if self.uses_keyword_matching():
+            return "All wards"
         ward_code = self.resolve_ward_code()
         if not ward_code:
             return "All wards"
@@ -140,10 +152,17 @@ class PlanningQuery(BaseModel):
         Returns:
             The canonical parish name, or ``All parishes`` when no parish is set.
         """
+        if self.uses_keyword_matching():
+            return "All parishes"
         parish_code = self.resolve_parish_code()
         if not parish_code:
             return "All parishes"
         return PARISH_CODE_TO_NAME[parish_code]
+
+    def matching_keywords(self, proposal: str) -> list[str]:
+        """Return the configured lowercase keywords found in a proposal."""
+        proposal_text = proposal.lower()
+        return [keyword for keyword in self.keywords if keyword in proposal_text]
 
     def selected_week(self, available_weeks: list[str]) -> str:
         """Return the week value this query should use.
@@ -188,6 +207,7 @@ class CliConfig(BaseModel):
     parish: str | None = None
     status_mode: CliStatusMode | None = None
     week: str | None = None
+    keywords: str | list[str] | None = None
     email_to: str | None = None
 
 
@@ -199,6 +219,7 @@ class CliInputs(BaseModel):
     parish: str | None = None
     status: CliStatusMode | None = None
     week: str | None = None
+    keywords: str | list[str] | None = None
     email_to: str | None = None
 
 

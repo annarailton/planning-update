@@ -20,6 +20,8 @@ https://public.oxford.gov.uk/online-applications/search.do?action=weeklyList
 
 `main.py` fetches planning applications for the selected ward/parish filters
 using the weekly list filters for `validated`, `decided`, or `both`.
+When `keywords` are supplied, the scraper searches across all wards and parishes
+for proposal text matches instead of applying ward/parish filters.
 
 The lookup data lives in [ward_mappings.json](/Users/annarailton/projects/planning-update/ward_mappings.json),
 and [location_lookup.py](/Users/annarailton/projects/planning-update/location_lookup.py) loads it for the scraper.
@@ -61,6 +63,7 @@ uv run oxford-weekly --debug
 uv run oxford-weekly --parish "Littlemore"
 uv run oxford-weekly --ward "churchill"
 uv run oxford-weekly --week "30 Mar 2026"
+uv run oxford-weekly --keywords "photovoltaics, heat pump, ASHP, PV"
 
 python main.py
 python main.py --parish "Littlemore"
@@ -85,6 +88,7 @@ debug = true
 ward = "churchill"
 parish = "Littlemore"
 status_mode = "validated"
+keywords = "photovoltaics, heat pump, ASHP, PV"
 email_to = "example@gmail.com"
 ```
 

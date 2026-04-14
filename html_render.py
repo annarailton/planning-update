@@ -103,6 +103,7 @@ def build_search_criteria(
         "Parish": query.resolved_parish_name(),
         "Mode": mode,
         "Week": query.requested_week or "Latest available",
+        **({"Keywords": ", ".join(query.keywords)} if query.keywords else {}),
     }
 
 
@@ -183,7 +184,17 @@ def render_application_html(
                     format_application_date(application.decided),
                     decision_date_css_class(application.decided, today=render_today),
                 ),
+                (
+                    (
+                        "Keyword match",
+                        escape(", ".join(application.keyword_matches or [])),
+                        "",
+                    )
+                    if application.keyword_matches
+                    else None
+                ),
             ]
+            fields = [field for field in fields if field is not None]
             cards.append(
                 (
                     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="card">'

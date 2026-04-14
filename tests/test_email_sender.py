@@ -27,6 +27,19 @@ def test_build_plain_text_email_includes_core_sections(
     assert "Generated 2026-04-13 09:30" in text
 
 
+def test_build_plain_text_email_includes_keyword_matches(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Plain text email should include matched keywords when present."""
+    text = email_sender.build_plain_text_email(
+        applications=[application_factory(keyword_matches=["heat pump", "pv"])],
+        generated_at=datetime(2026, 4, 13, 9, 30),
+        search_criteria={"Keywords": "heat pump, pv"},
+    )
+
+    assert "Keyword match: heat pump, pv" in text
+
+
 def test_build_plain_text_email_includes_application_sections(
     application_factory: Callable[..., Application],
 ) -> None:

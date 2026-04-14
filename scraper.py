@@ -1,10 +1,17 @@
 """HTTP and orchestration logic for the Oxford planning application scraper."""
 
+from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
 
-from constants import DEFAULT_TIMEOUT_SECONDS, RESULTS_URL, WEEKLY_LIST_URL
+from cache import load_cached_applications, save_cached_applications
+from constants import (
+    DEFAULT_TIMEOUT_SECONDS,
+    RESULTS_URL,
+    SCRAPER_CACHE_DIR,
+    WEEKLY_LIST_URL,
+)
 from models import Application, PlanningQuery
 from parser import (
     extract_applications,
@@ -186,3 +193,55 @@ def fetch_latest_applications(query: PlanningQuery) -> list[Application]:
         applications.extend(extract_applications(next_html, week, next_page_url))
     applications = filter_applications_by_keywords(applications, query=query)
     return [enrich_application(session, application) for application in applications]
+
+
+def fetch_latest_applications_cached(
+    query: PlanningQuery, *, cache_dir: Path = SCRAPER_CACHE_DIR
+) -> list[Application]:
+    """Fetch applications for a query, reusing the local cache when available."""
+    cached_applications = load_cached_applications(query, cache_dir=cache_dir)
+    if cached_applications is not None:
+        return cached_applications
+
+    applications = fetch_latest_applications(query)
+    save_cached_applications(query, applications, cache_dir=cache_dir)
+    return applications
+
+
+def fetch_applications_for_query(
+    *, query: PlanningQuery, debug: bool
+) -> list[Application]:
+    """Fetch applications, using the local cache for debug runs."""
+    if debug:
+        return fetch_latest_applications_cached(query)
+    return fetch_latest_applications(query)
+
+
+def merge_applications(
+    existing: list[Application], new: list[Application]
+) -> list[Application]:
+    """Merge application lists by reference while preserving first-seen order."""
+    merged: dict[str, Application] = {
+        application.application_ref.value: application for application in existing
+    }
+    ordered_refs = [application.application_ref.value for application in existing]
+
+    for application in new:
+        application_ref = application.application_ref.value
+        if application_ref not in merged:
+            merged[application_ref] = application
+            ordered_refs.append(application_ref)
+            continue
+
+        current = merged[application_ref]
+        keyword_matches = list(current.keyword_matches or [])
+        for keyword in application.keyword_matches or []:
+            if keyword not in keyword_matches:
+                keyword_matches.append(keyword)
+        merged[application_ref] = Application.model_validate(
+            current.model_dump()
+            | application.model_dump(exclude_none=True)
+            | {"keyword_matches": keyword_matches or None}
+        )
+
+    return [merged[application_ref] for application_ref in ordered_refs]

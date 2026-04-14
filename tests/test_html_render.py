@@ -190,6 +190,21 @@ def test_render_application_html_shows_keyword_matches(
     assert "heat pump, pv" in html
 
 
+def test_render_application_html_colours_keyword_matches_green(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Keyword match values should use the success styling when present."""
+    html = html_render.render_application_html(
+        [application_factory(keyword_matches=["heat pump", "pv"])]
+    )
+
+    assert ".field-value--keyword-match{color:var(--color-success);" in html
+    assert (
+        '<td class="field-value field-value--keyword-match" valign="top">heat pump, pv</td>'
+        in html
+    )
+
+
 def test_render_application_html_shows_empty_card_for_empty_results() -> None:
     """The HTML output should render an empty-state card when no applications exist."""
     html = html_render.render_application_html([])

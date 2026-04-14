@@ -91,6 +91,13 @@ def decision_date_css_class(value: date | None, *, today: date) -> str:
     return ""
 
 
+def keyword_match_css_class(keyword_matches: list[str] | None) -> str:
+    """Return a modifier CSS class when keyword matches are present."""
+    if keyword_matches:
+        return " field-value--keyword-match"
+    return ""
+
+
 def build_search_criteria(
     *,
     query: PlanningQuery,
@@ -195,7 +202,7 @@ def render_application_html(
                     (
                         "Keyword match",
                         escape(", ".join(application.keyword_matches or [])),
-                        "",
+                        keyword_match_css_class(application.keyword_matches),
                     )
                     if application.keyword_matches
                     else None
@@ -306,6 +313,7 @@ def render_application_html(
         ".field-value--status-decided{color:var(--color-success);font-weight:700;}"
         ".field-value--status-registered{color:var(--color-warning);font-weight:700;}"
         ".field-value--decision-date-past{color:var(--color-success);font-weight:700;}"
+        ".field-value--keyword-match{color:var(--color-success);font-weight:700;}"
         "a{color:var(--color-link);text-decoration:none;}"
         "a:hover{text-decoration:underline;}"
         "</style>"

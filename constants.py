@@ -1,11 +1,16 @@
 """Shared constants for the Oxford planning notifier."""
 
+# Planning website stuff
 BASE_URL = "https://public.oxford.gov.uk"
 WEEKLY_LIST_URL = (
     "https://public.oxford.gov.uk/online-applications/search.do?action=weeklyList"
 )
 RESULTS_URL = "https://public.oxford.gov.uk/online-applications/weeklyListResults.do?action=firstPage"
 DEFAULT_TIMEOUT_SECONDS = 30
+
+# Email stuff
+RESEND_EMAILS_URL = "https://api.resend.com/emails"
+DEFAULT_SENDER_ADDRESS = "anna@updates.railton.dev"
 
 # Colours for the HTML output, based on the Tailwind CSS palette with some custom additions.
 PAGE_BACKGROUND_COLOR = "#f5f1e8"

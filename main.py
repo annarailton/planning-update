@@ -10,6 +10,7 @@ import requests
 import typer
 from pydantic import ValidationError
 
+from config import load_cli_config
 from email_sender import (
     build_email_subject,
     build_plain_text_email,
@@ -35,6 +36,24 @@ def build_default_output_path(*, generated_at: datetime) -> Path:
 
 @app.callback()
 def run(
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            help=(
+                "Optional TOML config file to load CLI defaults from. "
+                "Defaults to planning_update.toml when present."
+            ),
+            dir_okay=False,
+            exists=False,
+        ),
+    ] = None,
+    debug: Annotated[
+        bool | None,
+        typer.Option(
+            "--debug/--no-debug",
+            help="Write the rendered HTML output to a local file for inspection.",
+        ),
+    ] = None,
     ward: Annotated[
         str | None,
         typer.Option(
@@ -48,15 +67,19 @@ def run(
         ),
     ] = None,
     validated: Annotated[
-        bool,
+        bool | None,
         typer.Option(
-            help="Use the 'Validated in this week' filter. This is the default."
+            "--validated/--no-validated",
+            help="Use the 'Validated in this week' filter. This is the default.",
         ),
-    ] = False,
+    ] = None,
     decided: Annotated[
-        bool,
-        typer.Option(help="Use the 'Decided in this week' filter."),
-    ] = False,
+        bool | None,
+        typer.Option(
+            "--decided/--no-decided",
+            help="Use the 'Decided in this week' filter.",
+        ),
+    ] = None,
     week: Annotated[
         str | None,
         typer.Option(
@@ -64,24 +87,25 @@ def run(
         ),
     ] = None,
     fallback_weeks: Annotated[
-        int,
+        int | None,
         typer.Option(
             help=(
                 "How many earlier weeks to try when the latest available week has no "
                 "results. Default: 1."
             )
         ),
-    ] = 1,
+    ] = None,
     strict: Annotated[
-        bool,
+        bool | None,
         typer.Option(
-            help="Do not fall back to an earlier week when the first checked week has no results."
+            "--strict/--no-strict",
+            help="Do not fall back to an earlier week when the first checked week has no results.",
         ),
-    ] = False,
+    ] = None,
     output: Annotated[
         Path | None,
         typer.Option(
-            help="Optional path to write the rendered HTML output file.",
+            help="Optional path for the debug HTML output file.",
             dir_okay=False,
             writable=True,
         ),
@@ -92,26 +116,52 @@ def run(
             help="Optional recipient email address to send the rendered HTML via Resend.",
         ),
     ] = None,
-    dry_run_email: Annotated[
-        bool,
-        typer.Option(
-            help="Build the email payload but do not send it to Resend.",
-        ),
-    ] = False,
 ) -> None:
     """Run the CLI and write the scraped applications to an HTML file."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
-    if validated and decided:
+    try:
+        cli_config = load_cli_config(path=config)
+    except (FileNotFoundError, ValidationError, ValueError) as exc:
+        typer.secho(f"Error: {exc}", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
+    if validated is True and decided is True:
         raise typer.BadParameter("Use at most one of --validated or --decided.")
 
-    status_mode: ApplicationStatusMode = "decided" if decided else "validated"
+    if decided is True:
+        status_mode: ApplicationStatusMode = "decided"
+    elif validated is True:
+        status_mode = "validated"
+    elif cli_config.status_mode is not None:
+        status_mode = cli_config.status_mode
+    else:
+        status_mode = "validated"
+
+    fallback_weeks_value = (
+        fallback_weeks
+        if fallback_weeks is not None
+        else cli_config.fallback_weeks if cli_config.fallback_weeks is not None else 1
+    )
+    debug_value = (
+        debug
+        if debug is not None
+        else cli_config.debug if cli_config.debug is not None else False
+    )
+    strict_value = (
+        strict
+        if strict is not None
+        else cli_config.strict if cli_config.strict is not None else False
+    )
+    output_path = output or cli_config.output
+    email_to_value = email_to if email_to is not None else cli_config.email_to
+
     query = PlanningQuery(
-        ward_name=ward,
-        parish_name=parish,
-        requested_week=week,
-        fallback_weeks=max(0, fallback_weeks),
-        strict=strict,
+        ward_name=ward if ward is not None else cli_config.ward,
+        parish_name=parish if parish is not None else cli_config.parish,
+        requested_week=week if week is not None else cli_config.week,
+        fallback_weeks=max(0, fallback_weeks_value),
+        strict=strict_value,
         status_mode=status_mode,
     )
 
@@ -125,11 +175,11 @@ def run(
         raise typer.Exit(code=1) from exc
 
     generated_at = datetime.now()
-    output_path = output or build_default_output_path(generated_at=generated_at)
+    output_path = output_path or build_default_output_path(generated_at=generated_at)
     search_criteria = build_search_criteria(
         query=query,
-        validated=validated,
-        decided=decided,
+        validated=status_mode == "validated",
+        decided=status_mode == "decided",
     )
     html_output = render_application_html(
         applications,
@@ -139,10 +189,15 @@ def run(
     typer.echo(f"Found {len(applications)} applications.")
     if not applications:
         return
-    output_path.write_text(html_output, encoding="utf-8")
-    typer.echo(f"Saved HTML output to {output_path}")
+    if debug_value:
+        output_path = output_path or build_default_output_path(
+            generated_at=generated_at
+        )
+        output_path.write_text(html_output, encoding="utf-8")
+        typer.echo(f"Saved HTML output to {output_path}")
+        return
 
-    if email_to:
+    if email_to_value:
         subject = build_email_subject(
             week=query.requested_week,
         )
@@ -152,12 +207,6 @@ def run(
             search_criteria=search_criteria,
         )
 
-        if dry_run_email:
-            typer.echo(
-                f"Dry run: prepared email to {email_to} with subject '{subject}'."
-            )
-            return
-
         resend_api_key = os.environ.get("RESEND_API_KEY")
         if not resend_api_key:
             raise typer.BadParameter(
@@ -166,12 +215,12 @@ def run(
 
         email_id = send_resend_email(
             api_key=resend_api_key,
-            recipient=email_to,
+            recipient=email_to_value,
             subject=subject,
             html=html_output,
             text=text_output,
         )
-        typer.echo(f"Sent email to {email_to} via Resend ({email_id}).")
+        typer.echo(f"Sent email to {email_to_value} via Resend ({email_id}).")
 
 
 def main() -> None:

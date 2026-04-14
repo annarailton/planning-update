@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 
 from rapidfuzz import process
 
-CONFIG_DATA_PATH = Path(__file__).with_name("ward_mappings.json")
-FUZZY_MATCH_THRESHOLD = 85
+from constants import FUZZY_MATCH_THRESHOLD, WARD_DATA_PATH
 
 
 def load_mapping_options() -> dict[str, list[dict[str, str]]]:
@@ -18,7 +16,7 @@ def load_mapping_options() -> dict[str, list[dict[str, str]]]:
     Returns:
         Parsed mapping data keyed by section name.
     """
-    return json.loads(CONFIG_DATA_PATH.read_text())
+    return json.loads(WARD_DATA_PATH.read_text())
 
 
 def normalize_name(

@@ -91,7 +91,7 @@ def run(
     ] = None,
 ) -> None:
     """Run the CLI and write the scraped applications to an HTML file."""
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
     try:
         cli_config = load_cli_config(path=config)

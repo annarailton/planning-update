@@ -80,7 +80,7 @@ def test_cli_does_not_write_html_output_without_debug(
     )
 
     assert result.exit_code == 0
-    assert "Found 1 applications." in result.stdout
+    assert "Found 2 applications." in result.stdout
     assert "Saved HTML output to" not in result.stdout
     assert not output_path.exists()
 
@@ -288,10 +288,10 @@ def test_cli_both_status_renders_two_empty_sections(
     assert html.count("No applications") == 2
 
 
-def test_cli_uses_default_config_file(
+def test_cli_uses_explicit_config_file(
     application_factory: Callable[..., Application], monkeypatch, tmp_path: Path
 ) -> None:
-    """CLI should load defaults from planning_update.toml in the cwd."""
+    """CLI should load defaults from an explicitly provided config file."""
     config_path = tmp_path / "planning_update.toml"
     config_path.write_text(
         "\n".join(
@@ -315,14 +315,13 @@ def test_cli_uses_default_config_file(
         assert query.strict is True
         return [application_factory()]
 
-    monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(
         main, "fetch_latest_applications", fake_fetch_latest_applications
     )
     output_path = tmp_path / "planning_applications.html"
     result = runner.invoke(
         main.app,
-        ["--debug", "--output", str(output_path)],
+        ["--config", str(config_path), "--debug", "--output", str(output_path)],
         catch_exceptions=False,
     )
 

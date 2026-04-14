@@ -3,7 +3,6 @@
 import tomllib
 from pathlib import Path
 
-from constants import DEFAULT_CONFIG_FILENAME
 from models import (
     CliConfig,
     CliInputs,
@@ -12,18 +11,14 @@ from models import (
 )
 
 
-def default_config_path() -> Path:
-    """Return the default config path for the current working directory."""
-    return Path(DEFAULT_CONFIG_FILENAME)
-
-
 def load_cli_config(path: Path | None = None) -> CliConfig:
-    """Load CLI defaults from a TOML file when one exists."""
-    config_path = path or default_config_path()
-    if not config_path.exists():
-        if path is not None:
-            raise FileNotFoundError(f"Config file not found: {config_path}")
+    """Load CLI defaults from an explicitly provided TOML file."""
+    if path is None:
         return CliConfig()
+
+    config_path = path
+    if not config_path.exists():
+        raise FileNotFoundError(f"Config file not found: {config_path}")
 
     with config_path.open("rb") as config_file:
         raw_config = tomllib.load(config_file)

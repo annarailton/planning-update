@@ -2,9 +2,6 @@
 
 from pathlib import Path
 
-# Config locations
-DEFAULT_CONFIG_FILENAME = "planning_update.toml"
-
 # Ward and parish data locations
 WARD_DATA_PATH = Path(__file__).with_name("ward_mappings.json")
 FUZZY_MATCH_THRESHOLD = 85

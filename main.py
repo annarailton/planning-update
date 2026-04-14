@@ -39,10 +39,7 @@ def run(
     config: Annotated[
         Path | None,
         typer.Option(
-            help=(
-                "Optional TOML config file to load CLI defaults from. "
-                "Defaults to planning_update.toml when present."
-            ),
+            help=("Optional TOML config file to load CLI defaults from."),
             dir_okay=False,
             exists=False,
         ),

@@ -74,8 +74,7 @@ python main.py --strict
 
 ## Config file
 
-The CLI can load default option values from `planning_update.toml` in the current
-working directory, or from an explicit path passed with `--config`.
+The CLI only loads config values when you pass an explicit file with `--config`.
 
 CLI flags still win over config values, so this works well for keeping your usual
 ward, mode, email recipient, and fallback settings in one place.
@@ -103,7 +102,7 @@ status_mode = "decided"
 Examples with config:
 
 ```bash
-uv run oxford-weekly --debug --output latest.html
+uv run oxford-weekly --config planning_update.toml --debug --output latest.html
 uv run oxford-weekly --config /path/to/planning_update.toml --status decided
 python main.py --config planning_update.toml --no-strict
 ```

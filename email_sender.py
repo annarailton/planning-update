@@ -5,11 +5,9 @@ from datetime import datetime
 
 import requests
 
+from constants import DEFAULT_SENDER_ADDRESS, RESEND_EMAILS_URL
 from html_render import format_generated_timestamp
 from models import Application
-
-RESEND_EMAILS_URL = "https://api.resend.com/emails"
-DEFAULT_SENDER_ADDRESS = "anna@railton.dev"
 
 
 def build_email_subject(
@@ -89,10 +87,19 @@ def send_resend_email(
     recipient: str,
     subject: str,
     html: str,
-    text: str,
+    text: str | None = None,
     sender: str = DEFAULT_SENDER_ADDRESS,
 ) -> str:
     """Send an email through Resend and return the message id."""
+    payload = {
+        "from": sender,
+        "to": [recipient],
+        "subject": subject,
+        "html": html,
+    }
+    if text is not None:
+        payload["text"] = text
+
     response = requests.post(
         RESEND_EMAILS_URL,
         headers={
@@ -105,16 +112,22 @@ def send_resend_email(
                 html=html,
             ),
         },
-        json={
-            "from": sender,
-            "to": [recipient],
-            "subject": subject,
-            "html": html,
-            "text": text,
-        },
+        json=payload,
         timeout=30,
     )
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        detail = response.text.strip()
+        if response.status_code == 403:
+            raise ValueError(
+                "Resend rejected the send request with 403 Forbidden. "
+                f"This often means the sender domain is not verified for the from address '{sender}'. "
+                f"Response: {detail}"
+            ) from exc
+        raise ValueError(
+            f"Resend request failed with status {response.status_code}. Response: {detail}"
+        ) from exc
     payload = response.json()
     email_id = payload.get("id")
     if not email_id:

@@ -1,6 +1,5 @@
 """Tests for the Typer CLI entry point."""
 
-import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -10,7 +9,6 @@ import main
 from models import Application, PlanningQuery
 
 runner = CliRunner()
-ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def test_cli_writes_html_output_file(
@@ -37,7 +35,8 @@ def test_cli_writes_html_output_file(
             "--debug",
             "--ward",
             "churchill",
-            "--decided",
+            "--status",
+            "decided",
             "--strict",
             "--output",
             str(output_path),
@@ -86,6 +85,31 @@ def test_cli_does_not_write_html_output_without_debug(
     assert not output_path.exists()
 
 
+def test_cli_debug_writes_html_output_when_no_applications(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """CLI should still write an empty-state HTML file in debug mode."""
+
+    def fake_fetch_latest_applications(query: PlanningQuery) -> list[Application]:
+        return []
+
+    monkeypatch.setattr(
+        main, "fetch_latest_applications", fake_fetch_latest_applications
+    )
+
+    output_path = tmp_path / "applications.html"
+    result = runner.invoke(
+        main.app,
+        ["--debug", "--output", str(output_path)],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert "Found 0 applications." in result.stdout
+    assert f"Saved HTML output to {output_path}" in result.stdout
+    assert "No applications" in output_path.read_text(encoding="utf-8")
+
+
 def test_cli_uses_timestamped_default_output_filename(
     application_factory: Callable[..., Application], monkeypatch, tmp_path: Path
 ) -> None:
@@ -105,7 +129,11 @@ def test_cli_uses_timestamped_default_output_filename(
         lambda *, generated_at: default_output_path,
     )
 
-    result = runner.invoke(main.app, ["--debug", "--decided"], catch_exceptions=False)
+    result = runner.invoke(
+        main.app,
+        ["--debug", "--status", "decided"],
+        catch_exceptions=False,
+    )
 
     assert result.exit_code == 0
     assert f"Saved HTML output to {default_output_path}" in result.stdout
@@ -199,14 +227,65 @@ def test_cli_debug_mode_skips_email_and_writes_file(
     assert output_path.exists()
 
 
-def test_cli_rejects_validated_and_decided_together() -> None:
-    """CLI should reject selecting both date mode flags."""
-    result = runner.invoke(main.app, ["--validated", "--decided"])
-    # Typer may emit ANSI styling in CI, so normalize before asserting on text.
-    output = ANSI_ESCAPE_RE.sub("", result.output)
+def test_cli_both_status_renders_two_sections(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path: Path
+) -> None:
+    """CLI should fetch validated then decided results and render both sections."""
+    seen_modes: list[str] = []
 
-    assert result.exit_code != 0
-    assert "Use at most one of --validated or --decided." in output
+    def fake_fetch_latest_applications(query: PlanningQuery) -> list[Application]:
+        seen_modes.append(query.status_mode)
+        if query.status_mode == "validated":
+            return [application_factory(application_ref={"value": "26/00281/FUL"})]
+        return [application_factory(application_ref={"value": "26/00282/FUL"})]
+
+    monkeypatch.setattr(
+        main, "fetch_latest_applications", fake_fetch_latest_applications
+    )
+
+    output_path = tmp_path / "applications.html"
+    result = runner.invoke(
+        main.app,
+        ["--debug", "--status", "both", "--output", str(output_path)],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert seen_modes == ["validated", "decided"]
+    html = output_path.read_text(encoding="utf-8")
+    assert "Validated applications" in html
+    assert "Decided applications" in html
+    assert "Validated and decided in this week" in html
+
+
+def test_cli_both_status_renders_two_empty_sections(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """CLI should still render both sections in both-mode when both are empty."""
+    seen_modes: list[str] = []
+
+    def fake_fetch_latest_applications(query: PlanningQuery) -> list[Application]:
+        seen_modes.append(query.status_mode)
+        return []
+
+    monkeypatch.setattr(
+        main, "fetch_latest_applications", fake_fetch_latest_applications
+    )
+
+    output_path = tmp_path / "applications.html"
+    result = runner.invoke(
+        main.app,
+        ["--debug", "--status", "both", "--output", str(output_path)],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert seen_modes == ["validated", "decided"]
+    assert "Found 0 applications." in result.stdout
+    html = output_path.read_text(encoding="utf-8")
+    assert "Validated applications" in html
+    assert "Decided applications" in html
+    assert html.count("No applications") == 2
 
 
 def test_cli_uses_default_config_file(
@@ -306,7 +385,8 @@ def test_cli_arguments_override_config(
             str(config_path),
             "--ward",
             "marston",
-            "--decided",
+            "--status",
+            "decided",
             "--fallback-weeks",
             "0",
             "--no-strict",

@@ -17,7 +17,7 @@ from email_sender import (
     send_resend_email,
 )
 from html_render import build_search_criteria, render_application_html
-from models import CliInputs
+from models import Application, ApplicationSection, CliInputs, CliStatusMode
 from scraper import fetch_latest_applications
 
 app = typer.Typer(
@@ -66,18 +66,11 @@ def run(
             help="Optional human-readable parish name to query. Defaults to all parishes."
         ),
     ] = None,
-    validated: Annotated[
-        bool | None,
+    status: Annotated[
+        CliStatusMode | None,
         typer.Option(
-            "--validated/--no-validated",
-            help="Use the 'Validated in this week' filter. This is the default.",
-        ),
-    ] = None,
-    decided: Annotated[
-        bool | None,
-        typer.Option(
-            "--decided/--no-decided",
-            help="Use the 'Decided in this week' filter.",
+            "--status",
+            help="Which weekly list to query: validated, decided, or both.",
         ),
     ] = None,
     week: Annotated[
@@ -132,8 +125,7 @@ def run(
                 debug=debug,
                 ward=ward,
                 parish=parish,
-                validated=validated,
-                decided=decided,
+                status=status,
                 week=week,
                 fallback_weeks=fallback_weeks,
                 strict=strict,
@@ -146,9 +138,26 @@ def run(
         typer.secho(f"Error: {exc}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
-    # Get the applications matching the query
+    section_titles = {
+        "validated": "Validated applications",
+        "decided": "Decided applications",
+    }
+    sections: list[ApplicationSection] = []
+    applications: list[Application] = []
     try:
-        applications = fetch_latest_applications(options.query)
+        if options.status_mode == "both":
+            applications = []
+            for query in options.queries:
+                section_applications = fetch_latest_applications(query)
+                sections.append(
+                    ApplicationSection(
+                        title=section_titles[query.status_mode],
+                        applications=section_applications,
+                    )
+                )
+                applications.extend(section_applications)
+        else:
+            applications = fetch_latest_applications(options.queries[0])
     except (ValueError, ValidationError) as exc:
         typer.secho(f"Error: {exc}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
@@ -159,18 +168,16 @@ def run(
     generated_at = datetime.now()
     output_path = options.output or build_default_output_path(generated_at=generated_at)
     search_criteria = build_search_criteria(
-        query=options.query,
-        validated=options.query.status_mode == "validated",
-        decided=options.query.status_mode == "decided",
+        query=options.queries[0],
+        status_mode=options.status_mode,
     )
     html_output = render_application_html(
         applications,
+        sections=sections or None,
         search_criteria=search_criteria,
     )
 
     typer.echo(f"Found {len(applications)} applications.")
-    if not applications:
-        return
 
     # We don't send and email and dump results to HTML in debug mode
     if options.debug:
@@ -180,10 +187,11 @@ def run(
 
     if options.email_recipient:
         subject = build_email_subject(
-            week=options.query.requested_week,
+            week=options.queries[0].requested_week,
         )
         text_output = build_plain_text_email(
             applications=applications,
+            sections=sections or None,
             generated_at=generated_at,
             search_criteria=search_criteria,
         )

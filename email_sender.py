@@ -7,7 +7,7 @@ import requests
 
 from constants import DEFAULT_SENDER_ADDRESS, RESEND_EMAILS_URL
 from html_render import format_generated_timestamp
-from models import Application
+from models import Application, ApplicationSection
 
 
 def build_email_subject(
@@ -21,6 +21,7 @@ def build_email_subject(
 def build_plain_text_email(
     *,
     applications: list[Application],
+    sections: list[ApplicationSection] | None = None,
     generated_at: datetime,
     search_criteria: dict[str, str] | None,
 ) -> str:
@@ -35,33 +36,41 @@ def build_plain_text_email(
         lines.extend(["", "Search criteria:"])
         lines.extend(f"- {label}: {value}" for label, value in search_criteria.items())
 
-    for application in applications:
-        lines.extend(
-            [
-                "",
-                application.application_ref.value,
-                application.proposal,
-                application.address,
-                f"Ward: {application.ward or 'Not provided'}",
-                f"Received: {application.received.isoformat()}",
-                f"Validated: {application.validated.isoformat()}",
-                f"Status: {application.status or 'Not provided'}",
-                (
-                    "Consultation deadline: "
-                    f"{application.consultation_deadline.isoformat() if application.consultation_deadline else 'Not provided'}"
-                ),
-                (
-                    "Determination deadline: "
-                    f"{application.determination_deadline.isoformat() if application.determination_deadline else 'Not provided'}"
-                ),
-                f"Decision: {application.decision or 'Not provided'}",
-                (
-                    "Decided: "
-                    f"{application.decided.isoformat() if application.decided else 'Not provided'}"
-                ),
-                f"View application: {application.url}",
-            ]
-        )
+    def append_application_details(section_applications: list[Application]) -> None:
+        for application in section_applications:
+            lines.extend(
+                [
+                    "",
+                    application.application_ref.value,
+                    application.proposal,
+                    application.address,
+                    f"Ward: {application.ward or 'Not provided'}",
+                    f"Received: {application.received.isoformat()}",
+                    f"Validated: {application.validated.isoformat()}",
+                    f"Status: {application.status or 'Not provided'}",
+                    (
+                        "Consultation deadline: "
+                        f"{application.consultation_deadline.isoformat() if application.consultation_deadline else 'Not provided'}"
+                    ),
+                    (
+                        "Determination deadline: "
+                        f"{application.determination_deadline.isoformat() if application.determination_deadline else 'Not provided'}"
+                    ),
+                    f"Decision: {application.decision or 'Not provided'}",
+                    (
+                        "Decided: "
+                        f"{application.decided.isoformat() if application.decided else 'Not provided'}"
+                    ),
+                    f"View application: {application.url}",
+                ]
+            )
+
+    if sections:
+        for section in sections:
+            lines.extend(["", section.title])
+            append_application_details(section.applications)
+    else:
+        append_application_details(applications)
 
     lines.extend(["", f"Generated {format_generated_timestamp(generated_at)}"])
     return "\n".join(lines)

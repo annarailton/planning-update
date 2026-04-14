@@ -19,7 +19,7 @@ from constants import (
     TEXT_TERTIARY_COLOR,
     WARNING_COLOR,
 )
-from models import Application, PlanningQuery
+from models import Application, ApplicationSection, CliStatusMode, PlanningQuery
 
 
 def current_date() -> date:
@@ -89,13 +89,14 @@ def decision_date_css_class(value: date | None, *, today: date) -> str:
 def build_search_criteria(
     *,
     query: PlanningQuery,
-    validated: bool,
-    decided: bool,
+    status_mode: CliStatusMode,
 ) -> dict[str, str]:
     """Build the rendered search criteria summary for the HTML output."""
-    mode = "Decided in this week" if decided else "Validated in this week"
-    if validated:
-        mode = "Validated in this week"
+    mode = {
+        "validated": "Validated in this week",
+        "decided": "Decided in this week",
+        "both": "Validated and decided in this week",
+    }[status_mode]
 
     return {
         "Ward": query.resolved_ward_name(),
@@ -110,6 +111,7 @@ def build_search_criteria(
 def render_application_html(
     applications: list[Application],
     *,
+    sections: list[ApplicationSection] | None = None,
     search_criteria: dict[str, str] | None = None,
     today: date | None = None,
 ) -> str:
@@ -140,53 +142,78 @@ def render_application_html(
             )
         return "".join(rows)
 
-    cards: list[str] = []
-    for application in applications:
-        fields = [
-            ("Ward", escape(application.ward or "Not provided"), ""),
-            (
-                "Status",
-                escape(application.status or "Not provided"),
-                status_css_class(application.status),
-            ),
-            ("Received", format_application_date(application.received), ""),
-            ("Validated", format_application_date(application.validated), ""),
-            (
-                "Consultation deadline",
-                format_application_date(application.consultation_deadline),
-                date_css_class(application.consultation_deadline, today=render_today),
-            ),
-            (
-                "Determination deadline",
-                format_application_date(application.determination_deadline),
-                date_css_class(application.determination_deadline, today=render_today),
-            ),
-            (
-                "Decision",
-                escape(application.decision or "Not provided"),
-                decision_css_class(application.decision),
-            ),
-            (
-                "Decided",
-                format_application_date(application.decided),
-                decision_date_css_class(application.decided, today=render_today),
-            ),
-        ]
-        cards.append(
-            (
-                '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="card">'
-                "<tr><td>"
-                f'<div class="eyebrow">{escape(application.application_ref.value)}</div>'
-                f'<h2 class="card-title">{escape(application.proposal)}</h2>'
-                f'<p class="address">{escape(application.address)}</p>'
-                f'<p class="link-row"><a href="{escape(application.url, quote=True)}">View application</a></p>'
-                '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="fields">'
-                f"{render_fields_table(fields)}"
-                "</table>"
-                "</td></tr>"
+    def render_cards(items: list[Application]) -> str:
+        if not items:
+            return (
+                '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="card card--empty">'
+                '<tr><td><p class="empty-state">No applications</p></td></tr>'
                 "</table>"
             )
+
+        cards: list[str] = []
+        for application in items:
+            fields = [
+                ("Ward", escape(application.ward or "Not provided"), ""),
+                (
+                    "Status",
+                    escape(application.status or "Not provided"),
+                    status_css_class(application.status),
+                ),
+                ("Received", format_application_date(application.received), ""),
+                ("Validated", format_application_date(application.validated), ""),
+                (
+                    "Consultation deadline",
+                    format_application_date(application.consultation_deadline),
+                    date_css_class(
+                        application.consultation_deadline, today=render_today
+                    ),
+                ),
+                (
+                    "Determination deadline",
+                    format_application_date(application.determination_deadline),
+                    date_css_class(
+                        application.determination_deadline, today=render_today
+                    ),
+                ),
+                (
+                    "Decision",
+                    escape(application.decision or "Not provided"),
+                    decision_css_class(application.decision),
+                ),
+                (
+                    "Decided",
+                    format_application_date(application.decided),
+                    decision_date_css_class(application.decided, today=render_today),
+                ),
+            ]
+            cards.append(
+                (
+                    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="card">'
+                    "<tr><td>"
+                    f'<div class="eyebrow">{escape(application.application_ref.value)}</div>'
+                    f'<h2 class="card-title">{escape(application.proposal)}</h2>'
+                    f'<p class="address">{escape(application.address)}</p>'
+                    f'<p class="link-row"><a href="{escape(application.url, quote=True)}">View application</a></p>'
+                    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="fields">'
+                    f"{render_fields_table(fields)}"
+                    "</table>"
+                    "</td></tr>"
+                    "</table>"
+                )
+            )
+        return "".join(cards)
+
+    rendered_sections = ""
+    if sections:
+        rendered_sections = "".join(
+            (
+                f'<h2 class="section-title">{escape(section.title)}</h2>'
+                f"{render_cards(section.applications)}"
+            )
+            for section in sections
         )
+    else:
+        rendered_sections = render_cards(applications)
 
     criteria_fields = ""
     if search_criteria:
@@ -239,8 +266,11 @@ def render_application_html(
         ".criteria-item{color:var(--color-text-secondary);}"
         ".criteria-label{font-weight:700;color:var(--color-text-strong);padding:0 10px 6px 0;white-space:nowrap;}"
         ".criteria-value{color:var(--color-text-secondary);padding:0 0 6px 0;}"
+        ".section-title{margin:18px 0 8px;font-size:18px;line-height:1.2;color:var(--color-text-strong);}"
         ".card{background:var(--color-surface-primary);border:1px solid var(--color-border-subtle);border-radius:12px;box-shadow:0 4px 12px var(--color-shadow);margin-top:12px;}"
         ".card td{padding:14px;}"
+        ".card--empty td{padding:18px 14px;}"
+        ".empty-state{margin:0;font-size:16px;font-weight:700;color:var(--color-text-secondary);}"
         ".eyebrow{font-size:12px;font-weight:700;letter-spacing:0.08em;"
         "text-transform:uppercase;color:var(--color-accent-warm);margin-bottom:10px;}"
         ".card-title{margin:0 0 8px;font-size:24px;line-height:1.2;}"
@@ -275,7 +305,7 @@ def render_application_html(
         "<h2>Search criteria</h2>"
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="criteria-list">{criteria_fields}</table>'
         "</td></tr></table>"
-        f"{''.join(cards)}"
+        f"{rendered_sections}"
         f'<p class="timestamp">Generated {format_generated_timestamp(rendered_at)}</p>'
         "</td></tr></table>"
         "</td></tr></table>"

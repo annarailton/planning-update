@@ -4,7 +4,7 @@ from datetime import date
 
 from bs4 import BeautifulSoup
 
-from parser import (
+from planning_update.parsing.parser import (
     extract_further_information,
     extract_search_result_cards,
     extract_summary_application,

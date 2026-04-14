@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from config import load_cli_config, parse_keywords, resolve_cli_options
-from models import CliConfig, CliInputs, PlanningQuery
+from planning_update.config import load_cli_config, parse_keywords, resolve_cli_options
+from planning_update.models import CliConfig, CliInputs, PlanningQuery
 
 
 def test_load_cli_config_reads_top_level_values(tmp_path: Path) -> None:

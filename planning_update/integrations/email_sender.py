@@ -5,9 +5,9 @@ from datetime import datetime
 
 import requests
 
-from constants import DEFAULT_SENDER_ADDRESS, RESEND_EMAILS_URL
-from html_render import format_generated_timestamp
-from models import Application, ApplicationSection
+from ..constants import DEFAULT_SENDER_ADDRESS, RESEND_EMAILS_URL
+from ..models import Application, ApplicationSection
+from ..renderers.html_render import format_generated_timestamp
 
 
 def build_email_subject(

@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from html import escape
 
-from constants import (
+from ..constants import (
     ACCENT_WARM_COLOR,
     BORDER_SUBTLE_COLOR,
     DANGER_COLOR,
@@ -19,7 +19,7 @@ from constants import (
     TEXT_TERTIARY_COLOR,
     WARNING_COLOR,
 )
-from models import Application, ApplicationSection, CliStatusMode, PlanningQuery
+from ..models import Application, ApplicationSection, CliStatusMode, PlanningQuery
 
 
 def current_date() -> date:

@@ -4,8 +4,8 @@ from collections.abc import Callable
 
 import requests
 
-from models import Application, PlanningQuery
-from scraper import (
+from planning_update.models import Application, PlanningQuery
+from planning_update.services.scraper import (
     collect_result_applications,
     enrich_application,
     fetch_latest_applications,
@@ -64,7 +64,8 @@ def test_fetch_latest_applications_cached_reuses_saved_results(
         return applications
 
     monkeypatch.setattr(
-        "scraper.fetch_latest_applications", fake_fetch_latest_applications
+        "planning_update.services.scraper.fetch_latest_applications",
+        fake_fetch_latest_applications,
     )
 
     first = fetch_latest_applications_cached(query, cache_dir=tmp_path)
@@ -82,7 +83,7 @@ def test_fetch_latest_applications_only_enriches_keyword_matches(
     seen_refs: list[str] = []
 
     monkeypatch.setattr(
-        "scraper.collect_result_applications",
+        "planning_update.services.scraper.collect_result_applications",
         lambda session, *, query: [
             application_factory(
                 application_ref={"value": "26/00281/FUL"},
@@ -101,7 +102,9 @@ def test_fetch_latest_applications_only_enriches_keyword_matches(
         seen_refs.append(application.application_ref.value)
         return application
 
-    monkeypatch.setattr("scraper.enrich_application", fake_enrich_application)
+    monkeypatch.setattr(
+        "planning_update.services.scraper.enrich_application", fake_enrich_application
+    )
 
     applications = fetch_latest_applications(
         PlanningQuery(keywords=["heat pump", "ashp", "pv"])
@@ -124,13 +127,13 @@ def test_enrich_application_skips_summary_page_for_validated_queries(
         requested_urls.append(page_url)
         return "<html></html>", page_url
 
-    monkeypatch.setattr("scraper.fetch_page", fake_fetch_page)
+    monkeypatch.setattr("planning_update.services.scraper.fetch_page", fake_fetch_page)
     monkeypatch.setattr(
-        "scraper.extract_further_information",
+        "planning_update.services.scraper.extract_further_information",
         lambda html: ("Churchill Ward", None),
     )
     monkeypatch.setattr(
-        "scraper.extract_important_dates",
+        "planning_update.services.scraper.extract_important_dates",
         lambda html: ("Mon 16 Mar 2026", "Mon 06 Apr 2026"),
     )
 
@@ -161,13 +164,13 @@ def test_enrich_application_skips_dates_page_for_decided_queries(
         requested_urls.append(page_url)
         return "<html></html>", page_url
 
-    monkeypatch.setattr("scraper.fetch_page", fake_fetch_page)
+    monkeypatch.setattr("planning_update.services.scraper.fetch_page", fake_fetch_page)
     monkeypatch.setattr(
-        "scraper.extract_further_information",
+        "planning_update.services.scraper.extract_further_information",
         lambda html: ("Churchill Ward", None),
     )
     monkeypatch.setattr(
-        "scraper.extract_summary_fields",
+        "planning_update.services.scraper.extract_summary_fields",
         lambda html: ("Decided", "Thu 09 Apr 2026", "Approved"),
     )
 

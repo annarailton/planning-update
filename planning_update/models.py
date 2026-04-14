@@ -6,7 +6,7 @@ from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from location_lookup import (
+from .lookup.location_lookup import (
     PARISH_CODE_TO_NAME,
     WARD_CODE_TO_NAME,
     resolve_parish_code,

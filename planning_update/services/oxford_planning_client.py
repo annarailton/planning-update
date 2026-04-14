@@ -5,9 +5,9 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
 
-from constants import DEFAULT_TIMEOUT_SECONDS, RESULTS_URL, WEEKLY_LIST_URL
-from models import PlanningQuery
-from parser import extract_form_values
+from ..constants import DEFAULT_TIMEOUT_SECONDS, RESULTS_URL, WEEKLY_LIST_URL
+from ..models import PlanningQuery
+from ..parsing.parser import extract_form_values
 
 logger = logging.getLogger(__name__)
 

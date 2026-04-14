@@ -7,7 +7,7 @@ import re
 
 from rapidfuzz import process
 
-from constants import FUZZY_MATCH_THRESHOLD, WARD_DATA_PATH
+from ..constants import FUZZY_MATCH_THRESHOLD, WARD_DATA_PATH
 
 
 def load_mapping_options() -> dict[str, list[dict[str, str]]]:

@@ -2,13 +2,16 @@
 
 from collections.abc import Callable
 
-from models import (
+from planning_update.models import (
     Application,
     CliStatusMode,
     PlanningQuery,
     ResolvedCliOptions,
 )
-from report_service import build_planning_report, merge_applications
+from planning_update.services.report_service import (
+    build_planning_report,
+    merge_applications,
+)
 
 
 def test_build_planning_report_builds_sections_for_both_statuses(
@@ -26,7 +29,7 @@ def test_build_planning_report_builds_sections_for_both_statuses(
         return [application_factory(application_ref={"value": "26/00282/FUL"})]
 
     monkeypatch.setattr(
-        "report_service.fetch_applications_for_query",
+        "planning_update.services.report_service.fetch_applications_for_query",
         fake_fetch_applications_for_query,
     )
 
@@ -65,7 +68,7 @@ def test_build_planning_report_marks_unsearched_section(
         return [application_factory()]
 
     monkeypatch.setattr(
-        "report_service.fetch_applications_for_query",
+        "planning_update.services.report_service.fetch_applications_for_query",
         fake_fetch_applications_for_query,
     )
 

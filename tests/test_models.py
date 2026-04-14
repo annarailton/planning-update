@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from models import (
+from planning_update.models import (
     Application,
     ApplicationRef,
     CliConfig,

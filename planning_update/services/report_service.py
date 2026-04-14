@@ -1,7 +1,12 @@
 """Service-layer orchestration for bulding planning application reports."""
 
-from models import Application, ApplicationSection, PlanningReport, ResolvedCliOptions
-from scraper import fetch_applications_for_query
+from ..models import (
+    Application,
+    ApplicationSection,
+    PlanningReport,
+    ResolvedCliOptions,
+)
+from .scraper import fetch_applications_for_query
 
 SECTION_TITLES = {
     "validated": "Validated applications",

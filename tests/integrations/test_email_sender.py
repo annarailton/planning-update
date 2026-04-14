@@ -5,8 +5,8 @@ from datetime import datetime
 
 import requests
 
-import email_sender
-from models import Application, ApplicationSection
+from planning_update.integrations import email_sender
+from planning_update.models import Application, ApplicationSection
 
 
 def test_build_plain_text_email_includes_core_sections(

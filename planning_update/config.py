@@ -4,7 +4,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from models import (
+from .models import (
     CliConfig,
     CliInputs,
     PlanningQuery,

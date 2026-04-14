@@ -5,8 +5,8 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
 
-from constants import BASE_URL, WEEKLY_LIST_URL
-from models import (
+from ..constants import BASE_URL, WEEKLY_LIST_URL
+from ..models import (
     APPLICATION_ID_RE,
     Application,
     ApplicationRef,

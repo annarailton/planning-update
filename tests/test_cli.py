@@ -5,8 +5,13 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-import main
-from models import Application, ApplicationSection, PlanningQuery, PlanningReport
+from planning_update import cli as main
+from planning_update.models import (
+    Application,
+    ApplicationSection,
+    PlanningQuery,
+    PlanningReport,
+)
 
 runner = CliRunner()
 

@@ -2,7 +2,11 @@
 
 import pytest
 
-from location_lookup import normalize_name, resolve_parish_code, resolve_ward_code
+from planning_update.lookup.location_lookup import (
+    normalize_name,
+    resolve_parish_code,
+    resolve_ward_code,
+)
 
 
 @pytest.mark.parametrize(

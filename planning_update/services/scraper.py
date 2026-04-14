@@ -4,22 +4,22 @@ from pathlib import Path
 
 import requests
 
-from cache import load_cached_applications, save_cached_applications
-from constants import SCRAPER_CACHE_DIR
-from models import Application, PlanningQuery
-from oxford_planning_client import (
-    build_dates_tab_url,
-    build_further_information_tab_url,
-    fetch_form,
-    fetch_page,
-    fetch_results_page,
-)
-from parser import (
+from ..constants import SCRAPER_CACHE_DIR
+from ..models import Application, PlanningQuery
+from ..parsing.parser import (
     extract_applications,
     extract_further_information,
     extract_important_dates,
     extract_pagination_urls,
     extract_summary_fields,
+)
+from .cache import load_cached_applications, save_cached_applications
+from .oxford_planning_client import (
+    build_dates_tab_url,
+    build_further_information_tab_url,
+    fetch_form,
+    fetch_page,
+    fetch_results_page,
 )
 
 

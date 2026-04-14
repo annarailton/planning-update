@@ -5,8 +5,8 @@ from datetime import date, datetime
 
 import pytest
 
-import html_render
-from models import Application, ApplicationSection
+from planning_update.renderers import html_render
+from planning_update.models import Application, ApplicationSection
 
 
 @pytest.mark.parametrize(

@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 
-from models import Application, ApplicationRef
+from planning_update.models import Application, ApplicationRef
 
 
 @pytest.fixture

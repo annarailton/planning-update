@@ -4,8 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 
-from constants import SCRAPER_CACHE_DIR
-from models import Application, PlanningQuery
+from ..constants import SCRAPER_CACHE_DIR
+from ..models import Application, PlanningQuery
 
 
 def build_query_cache_path(

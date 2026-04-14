@@ -6,7 +6,7 @@ from datetime import datetime
 import requests
 
 import email_sender
-from models import Application
+from models import Application, ApplicationSection
 
 
 def test_build_plain_text_email_includes_core_sections(
@@ -25,6 +25,39 @@ def test_build_plain_text_email_includes_core_sections(
     assert "26/00281/FUL" in text
     assert "View application: https://example.com/app" in text
     assert "Generated 2026-04-13 09:30" in text
+
+
+def test_build_plain_text_email_includes_application_sections(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Plain text email should render named sections for multi-mode output."""
+    text = email_sender.build_plain_text_email(
+        applications=[
+            application_factory(application_ref={"value": "26/00281/FUL"}),
+            application_factory(application_ref={"value": "26/00282/FUL"}),
+        ],
+        sections=[
+            ApplicationSection(
+                title="Validated applications",
+                applications=[
+                    application_factory(application_ref={"value": "26/00281/FUL"})
+                ],
+            ),
+            ApplicationSection(
+                title="Decided applications",
+                applications=[
+                    application_factory(application_ref={"value": "26/00282/FUL"})
+                ],
+            ),
+        ],
+        generated_at=datetime(2026, 4, 13, 9, 30),
+        search_criteria={"Mode": "Validated and decided in this week"},
+    )
+
+    assert "Validated applications" in text
+    assert "Decided applications" in text
+    assert "26/00281/FUL" in text
+    assert "26/00282/FUL" in text
 
 
 def test_build_idempotency_key_is_stable_for_same_payload() -> None:

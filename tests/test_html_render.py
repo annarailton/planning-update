@@ -6,7 +6,7 @@ from datetime import date, datetime
 import pytest
 
 import html_render
-from models import Application
+from models import Application, ApplicationSection
 
 
 @pytest.mark.parametrize(
@@ -175,3 +175,43 @@ def test_render_application_html_shows_search_criteria_in_header(
     assert "Churchill" in html
     assert "Mode:" in html
     assert "Decided in this week" in html
+
+
+def test_render_application_html_shows_empty_card_for_empty_results() -> None:
+    """The HTML output should render an empty-state card when no applications exist."""
+    html = html_render.render_application_html([])
+
+    assert "No applications" in html
+    assert "card--empty" in html
+
+
+def test_render_application_html_shows_empty_card_for_empty_section() -> None:
+    """The HTML output should render an empty-state card for empty named sections."""
+    html = html_render.render_application_html(
+        [],
+        sections=[
+            ApplicationSection(title="Validated applications", applications=[]),
+            ApplicationSection(title="Decided applications", applications=[]),
+        ],
+    )
+
+    assert "Validated applications" in html
+    assert "Decided applications" in html
+    assert html.count("No applications") == 2
+
+
+def test_render_application_html_renders_both_empty_sections() -> None:
+    """The HTML output should render both sections when both-mode has no results."""
+    html = html_render.render_application_html(
+        [],
+        sections=[
+            ApplicationSection(title="Validated applications", applications=[]),
+            ApplicationSection(title="Decided applications", applications=[]),
+        ],
+        search_criteria={"Mode": "Validated and decided in this week"},
+    )
+
+    assert "Validated applications" in html
+    assert "Decided applications" in html
+    assert "Validated and decided in this week" in html
+    assert "No applications" in html

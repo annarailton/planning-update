@@ -15,6 +15,7 @@ from location_lookup import (
 )
 
 ApplicationStatusMode = Literal["validated", "decided"]
+CliStatusMode = Literal["validated", "decided", "both"]
 APPLICATION_ID_RE = re.compile(r"\b\d{2}/\d{5}/[A-Z0-9]+\b")
 
 
@@ -188,7 +189,7 @@ class CliConfig(BaseModel):
     debug: bool | None = None
     ward: str | None = None
     parish: str | None = None
-    status_mode: ApplicationStatusMode | None = None
+    status_mode: CliStatusMode | None = None
     week: str | None = None
     fallback_weeks: int | None = None
     strict: bool | None = None
@@ -212,8 +213,7 @@ class CliInputs(BaseModel):
     debug: bool = False
     ward: str | None = None
     parish: str | None = None
-    validated: bool | None = None
-    decided: bool | None = None
+    status: CliStatusMode | None = None
     week: str | None = None
     fallback_weeks: int | None = None
     strict: bool | None = None
@@ -227,4 +227,12 @@ class ResolvedCliOptions(BaseModel):
     debug: bool = False
     output: Path | None = None
     email_recipient: str | None = None
-    query: PlanningQuery
+    status_mode: CliStatusMode = "validated"
+    queries: list[PlanningQuery]
+
+
+class ApplicationSection(BaseModel):
+    """A named section of applications for rendered output."""
+
+    title: str
+    applications: list[Application]

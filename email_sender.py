@@ -53,19 +53,19 @@ def build_plain_text_email(
                 )
             details.extend(
                 [
-                    f"Status: {application.status or 'Not provided'}",
+                    f"Status: {application.status or 'N/A'}",
                     (
                         "Consultation deadline: "
-                        f"{application.consultation_deadline.isoformat() if application.consultation_deadline else 'Not provided'}"
+                        f"{application.consultation_deadline.isoformat() if application.consultation_deadline else 'N/A'}"
                     ),
                     (
                         "Determination deadline: "
-                        f"{application.determination_deadline.isoformat() if application.determination_deadline else 'Not provided'}"
+                        f"{application.determination_deadline.isoformat() if application.determination_deadline else 'N/A'}"
                     ),
-                    f"Decision: {application.decision or 'Not provided'}",
+                    f"Decision: {application.decision or 'N/A'}",
                     (
                         "Decided: "
-                        f"{application.decided.isoformat() if application.decided else 'Not provided'}"
+                        f"{application.decided.isoformat() if application.decided else 'N/A'}"
                     ),
                     f"View application: {application.url}",
                 ]

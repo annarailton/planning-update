@@ -41,8 +41,13 @@ def current_datetime() -> datetime:
 def format_application_date(value: date | None) -> str:
     """Render application date values consistently for HTML output."""
     if value is None:
-        return "Not provided"
+        return "N/A"
     return escape(value.strftime("%Y-%m-%d"))
+
+
+def format_optional_text(value: str | None) -> str:
+    """Render optional string values consistently for HTML output."""
+    return escape(value or "N/A")
 
 
 def format_generated_timestamp(value: datetime) -> str:
@@ -157,7 +162,7 @@ def render_application_html(
                 ("Ward", escape(application.ward or "Not provided"), ""),
                 (
                     "Status",
-                    escape(application.status or "Not provided"),
+                    format_optional_text(application.status),
                     status_css_class(application.status),
                 ),
                 ("Received", format_application_date(application.received), ""),
@@ -178,7 +183,7 @@ def render_application_html(
                 ),
                 (
                     "Decision",
-                    escape(application.decision or "Not provided"),
+                    format_optional_text(application.decision),
                     decision_css_class(application.decision),
                 ),
                 (

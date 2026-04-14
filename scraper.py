@@ -1,5 +1,6 @@
 """HTTP and orchestration logic for the Oxford planning application scraper."""
 
+import logging
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
@@ -21,6 +22,8 @@ from parser import (
     extract_pagination_urls,
     extract_summary_fields,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def fetch_form(session: requests.Session) -> tuple[str, list[str]]:
@@ -56,6 +59,7 @@ def fetch_results_page(
         A tuple containing the HTML body and final response URL.
     """
     payload = query.build_search_payload(csrf_token=csrf_token, week=week)
+    logger.debug("POST %s", RESULTS_URL)
     response = session.post(
         RESULTS_URL,
         data=payload,
@@ -75,6 +79,7 @@ def fetch_page(session: requests.Session, page_url: str) -> tuple[str, str]:
     Returns:
         A tuple containing the HTML body and final response URL.
     """
+    logger.debug("GET %s", page_url)
     response = session.get(page_url, timeout=DEFAULT_TIMEOUT_SECONDS)
     response.raise_for_status()
     return response.text, response.url
@@ -113,26 +118,41 @@ def build_further_information_tab_url(application_url: str) -> str:
 def enrich_application(
     session: requests.Session,
     application: Application,
+    *,
+    query: PlanningQuery,
 ) -> Application:
     """Fetch and attach summary-only fields and important dates.
 
     Args:
         session: HTTP session used to request the Oxford planning site.
         application: Parsed application to enrich.
+        query: Query mode used to decide which extra pages are required.
 
     Returns:
         The application with summary-only fields, further information, and
         important dates populated when available.
     """
-    summary_html, _ = fetch_page(session, application.url)
-    status, decided, decision = extract_summary_fields(summary_html)
     further_information_html, _ = fetch_page(
         session,
         build_further_information_tab_url(application.url),
     )
     ward, parish = extract_further_information(further_information_html)
-    dates_html, _ = fetch_page(session, build_dates_tab_url(application.url))
-    consultation_deadline, determination_deadline = extract_important_dates(dates_html)
+
+    status = None
+    decided = None
+    decision = None
+    if query.status_mode == "decided":
+        summary_html, _ = fetch_page(session, application.url)
+        status, decided, decision = extract_summary_fields(summary_html)
+
+    consultation_deadline = None
+    determination_deadline = None
+    if query.status_mode == "validated":
+        dates_html, _ = fetch_page(session, build_dates_tab_url(application.url))
+        consultation_deadline, determination_deadline = extract_important_dates(
+            dates_html
+        )
+
     return Application.model_validate(
         application.model_dump()
         | {
@@ -202,7 +222,10 @@ def fetch_latest_applications(query: PlanningQuery) -> list[Application]:
     # matching happens before we hit individual application pages for enrichment.
     applications = collect_result_applications(session, query=query)
     applications = filter_applications_by_keywords(applications, query=query)
-    return [enrich_application(session, application) for application in applications]
+    return [
+        enrich_application(session, application, query=query)
+        for application in applications
+    ]
 
 
 def fetch_latest_applications_cached(

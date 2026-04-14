@@ -19,7 +19,7 @@ https://public.oxford.gov.uk/online-applications/search.do?action=weeklyList
 ## Current scraper
 
 `main.py` fetches planning applications for the selected ward/parish filters
-using the weekly list filters for either `Validated in this week` or `Decided in this week`.
+using the weekly list filters for `validated`, `decided`, or `both`.
 
 The lookup data lives in [ward_mappings.json](/Users/annarailton/projects/planning-update/ward_mappings.json),
 and [location_lookup.py](/Users/annarailton/projects/planning-update/location_lookup.py) loads it for the scraper.
@@ -33,7 +33,7 @@ is empty. When that fallback happens, the CLI logs which week it is falling back
 The scraper works in three stages:
 
 1. Build the weekly-list search payload.
-   `PlanningQuery` in [models.py](/Users/annarailton/projects/planning-update/models.py) resolves the optional human-readable ward and parish names to Oxford's internal codes and serializes the form payload for the selected week and mode (`validated` or `decided`).
+   `PlanningQuery` in [models.py](/Users/annarailton/projects/planning-update/models.py) resolves the optional human-readable ward and parish names to Oxford's internal codes and serializes the form payload for the selected week and mode (`validated` or `decided`). The CLI can also run `both`, which executes those two queries sequentially and renders them in separate sections.
 
 2. Submit the weekly-list search and collect result pages.
    [scraper.py](/Users/annarailton/projects/planning-update/scraper.py) fetches the weekly-list form to get the CSRF token and available weeks, submits the query, and follows any pagination links so all result cards are collected rather than only the first page.
@@ -67,7 +67,8 @@ python main.py --parish "Littlemore"
 python main.py --ward "churchill"
 python main.py --ward "churchill" --parish "Littlemore"
 python main.py --week "30 Mar 2026"
-python main.py --decided
+python main.py --status decided
+python main.py --status both
 python main.py --strict
 ```
 
@@ -103,6 +104,6 @@ Examples with config:
 
 ```bash
 uv run oxford-weekly --debug --output latest.html
-uv run oxford-weekly --config /path/to/planning_update.toml --decided
+uv run oxford-weekly --config /path/to/planning_update.toml --status decided
 python main.py --config planning_update.toml --no-strict
 ```

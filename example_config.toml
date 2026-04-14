@@ -1,4 +1,4 @@
 ward = "Hinksey Park"
-status_mode = "validated"
+status_mode = "both"
 strict = true
 email_to = "cllrarailton@oxford.gov.uk"

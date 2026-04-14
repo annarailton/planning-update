@@ -204,13 +204,18 @@ def test_render_application_html_shows_empty_card_for_empty_section() -> None:
         [],
         sections=[
             ApplicationSection(title="Validated applications", applications=[]),
-            ApplicationSection(title="Decided applications", applications=[]),
+            ApplicationSection(
+                title="Decided applications",
+                applications=[],
+                empty_state_message="Not searched",
+            ),
         ],
     )
 
     assert "Validated applications" in html
     assert "Decided applications" in html
-    assert html.count("No applications") == 2
+    assert "No applications" in html
+    assert "Not searched" in html
 
 
 def test_render_application_html_renders_both_empty_sections() -> None:

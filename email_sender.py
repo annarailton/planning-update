@@ -75,7 +75,10 @@ def build_plain_text_email(
     if sections:
         for section in sections:
             lines.extend(["", section.title])
-            append_application_details(section.applications)
+            if section.applications:
+                append_application_details(section.applications)
+            else:
+                lines.append(section.empty_state_message)
     else:
         append_application_details(applications)
 

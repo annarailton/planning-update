@@ -141,11 +141,13 @@ def render_application_html(
             )
         return "".join(rows)
 
-    def render_cards(items: list[Application]) -> str:
+    def render_cards(
+        items: list[Application], *, empty_state_message: str = "No applications"
+    ) -> str:
         if not items:
             return (
                 '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="card card--empty">'
-                '<tr><td><p class="empty-state">No applications</p></td></tr>'
+                f'<tr><td><p class="empty-state">{escape(empty_state_message)}</p></td></tr>'
                 "</table>"
             )
 
@@ -217,7 +219,7 @@ def render_application_html(
         rendered_sections = "".join(
             (
                 f'<h2 class="section-title">{escape(section.title)}</h2>'
-                f"{render_cards(section.applications)}"
+                f"{render_cards(section.applications, empty_state_message=section.empty_state_message)}"
             )
             for section in sections
         )

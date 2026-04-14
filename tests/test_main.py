@@ -261,7 +261,6 @@ def test_cli_arguments_override_config(
         "\n".join(
             [
                 'ward = "churchill"',
-                "debug = true",
                 'status_mode = "validated"',
                 "fallback_weeks = 4",
                 "strict = true",
@@ -305,7 +304,6 @@ def test_cli_arguments_override_config(
         [
             "--config",
             str(config_path),
-            "--no-debug",
             "--ward",
             "marston",
             "--decided",

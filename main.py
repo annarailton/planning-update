@@ -48,12 +48,12 @@ def run(
         ),
     ] = None,
     debug: Annotated[
-        bool | None,
+        bool,
         typer.Option(
-            "--debug/--no-debug",
+            "--debug",
             help="Write the rendered HTML output to a local file for inspection.",
         ),
-    ] = None,
+    ] = False,
     ward: Annotated[
         str | None,
         typer.Option(
@@ -143,18 +143,14 @@ def run(
         if fallback_weeks is not None
         else cli_config.fallback_weeks if cli_config.fallback_weeks is not None else 1
     )
-    debug_value = (
-        debug
-        if debug is not None
-        else cli_config.debug if cli_config.debug is not None else False
-    )
+    debug = debug or cli_config.debug is True
     strict_value = (
         strict
         if strict is not None
         else cli_config.strict if cli_config.strict is not None else False
     )
     output_path = output or cli_config.output
-    email_to_value = email_to if email_to is not None else cli_config.email_to
+    email_recipient = email_to if email_to is not None else cli_config.email_to
 
     query = PlanningQuery(
         ward_name=ward if ward is not None else cli_config.ward,
@@ -189,7 +185,9 @@ def run(
     typer.echo(f"Found {len(applications)} applications.")
     if not applications:
         return
-    if debug_value:
+
+    # We don't send and email and dump results to HTML in debug mode
+    if debug:
         output_path = output_path or build_default_output_path(
             generated_at=generated_at
         )
@@ -197,7 +195,7 @@ def run(
         typer.echo(f"Saved HTML output to {output_path}")
         return
 
-    if email_to_value:
+    if email_recipient:
         subject = build_email_subject(
             week=query.requested_week,
         )
@@ -215,12 +213,12 @@ def run(
 
         email_id = send_resend_email(
             api_key=resend_api_key,
-            recipient=email_to_value,
+            recipient=email_recipient,
             subject=subject,
             html=html_output,
             text=text_output,
         )
-        typer.echo(f"Sent email to {email_to_value} via Resend ({email_id}).")
+        typer.echo(f"Sent email to {email_recipient} via Resend ({email_id}).")
 
 
 def main() -> None:

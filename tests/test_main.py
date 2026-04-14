@@ -6,9 +6,47 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 import main
-from models import Application, PlanningQuery
+from models import Application, ApplicationSection, PlanningQuery, PlanningReport
 
 runner = CliRunner()
+
+
+def build_report_from_applications(
+    applications: list[Application],
+    *,
+    status_mode: str = "both",
+) -> PlanningReport:
+    """Build a minimal PlanningReport for CLI tests."""
+    validated_applications = (
+        applications if status_mode in {"validated", "both"} else []
+    )
+    decided_applications = applications if status_mode == "both" else []
+    if status_mode == "decided":
+        decided_applications = applications
+
+    return PlanningReport(
+        applications=validated_applications + decided_applications,
+        sections=[
+            ApplicationSection(
+                title="Validated applications",
+                applications=validated_applications,
+                empty_state_message=(
+                    "No applications"
+                    if status_mode in {"validated", "both"}
+                    else "Not searched"
+                ),
+            ),
+            ApplicationSection(
+                title="Decided applications",
+                applications=decided_applications,
+                empty_state_message=(
+                    "No applications"
+                    if status_mode in {"decided", "both"}
+                    else "Not searched"
+                ),
+            ),
+        ],
+    )
 
 
 def test_cli_writes_html_output_file(
@@ -18,16 +56,15 @@ def test_cli_writes_html_output_file(
 ) -> None:
     """CLI should print the application count and write HTML card output to a file."""
 
-    def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
-        assert query.ward_name == "churchill"
-        assert query.status_mode == "decided"
-        return [application_factory()]
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        assert options.queries[0].ward_name == "churchill"
+        assert options.queries[0].status_mode == "decided"
+        return build_report_from_applications(
+            [application_factory()],
+            status_mode="decided",
+        )
 
-    monkeypatch.setattr(
-        main, "fetch_applications_for_query", fake_fetch_applications_for_query
-    )
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
 
     output_path = tmp_path / "applications.html"
     monkeypatch.setattr(
@@ -70,20 +107,29 @@ def test_cli_keywords_are_passed_to_query_and_rendered(
     """CLI should pass comma-delimited keywords into the query and HTML output."""
     seen_queries: list[tuple[str, list[str]]] = []
 
-    def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
-        seen_queries.append((query.status_mode, query.keywords))
-        return [
-            application_factory(
-                keyword_matches=["ashp", "pv"],
-                application_ref={"value": "26/00281/FUL"},
-            )
-        ]
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        seen_queries.extend(
+            (query.status_mode, query.keywords) for query in options.queries
+        )
+        application = application_factory(
+            keyword_matches=["ashp", "pv"],
+            application_ref={"value": "26/00281/FUL"},
+        )
+        return PlanningReport(
+            applications=[application, application],
+            sections=[
+                ApplicationSection(
+                    title="Validated applications",
+                    applications=[application],
+                ),
+                ApplicationSection(
+                    title="Decided applications",
+                    applications=[application],
+                ),
+            ],
+        )
 
-    monkeypatch.setattr(
-        main, "fetch_applications_for_query", fake_fetch_applications_for_query
-    )
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
 
     output_path = tmp_path / "applications.html"
     monkeypatch.setattr(
@@ -120,14 +166,12 @@ def test_cli_does_not_write_html_output_without_debug(
 ) -> None:
     """CLI should skip writing the HTML file unless debug output is enabled."""
 
-    def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
-        return [application_factory()]
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        return build_report_from_applications(
+            [application_factory()], status_mode="both"
+        )
 
-    monkeypatch.setattr(
-        main, "fetch_applications_for_query", fake_fetch_applications_for_query
-    )
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
 
     output_path = tmp_path / "applications.html"
     result = runner.invoke(
@@ -147,14 +191,10 @@ def test_cli_debug_writes_html_output_when_no_applications(
 ) -> None:
     """CLI should still write an empty-state HTML file in debug mode."""
 
-    def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
-        return []
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        return build_report_from_applications([], status_mode="both")
 
-    monkeypatch.setattr(
-        main, "fetch_applications_for_query", fake_fetch_applications_for_query
-    )
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
 
     output_path = tmp_path / "applications.html"
     monkeypatch.setattr(
@@ -183,14 +223,13 @@ def test_cli_uses_timestamped_default_output_filename(
 ) -> None:
     """CLI should use a timestamped HTML filename when output is not provided."""
 
-    def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
-        return [application_factory()]
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        return build_report_from_applications(
+            [application_factory()],
+            status_mode="decided",
+        )
 
-    monkeypatch.setattr(
-        main, "fetch_applications_for_query", fake_fetch_applications_for_query
-    )
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
 
     default_output_path = tmp_path / "2026-04-13T09-30-00_planning_applications.html"
     monkeypatch.setattr(
@@ -215,10 +254,10 @@ def test_cli_sends_email_via_resend(
 ) -> None:
     """CLI should send the rendered HTML via Resend when requested."""
 
-    def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
-        return [application_factory()]
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        return build_report_from_applications(
+            [application_factory()], status_mode="both"
+        )
 
     sent_payload: dict[str, str] = {}
 
@@ -243,9 +282,7 @@ def test_cli_sends_email_via_resend(
         )
         return "email_123"
 
-    monkeypatch.setattr(
-        main, "fetch_applications_for_query", fake_fetch_applications_for_query
-    )
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
     monkeypatch.setattr(main, "send_resend_email", fake_send_resend_email)
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
 
@@ -271,17 +308,15 @@ def test_cli_debug_mode_skips_email_and_writes_file(
 ) -> None:
     """CLI should write debug HTML and skip sending email when debug is enabled."""
 
-    def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
-        return [application_factory()]
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        return build_report_from_applications(
+            [application_factory()], status_mode="both"
+        )
 
     def fail_send_resend_email(**kwargs) -> str:
         raise AssertionError("send_resend_email should not be called in debug mode")
 
-    monkeypatch.setattr(
-        main, "fetch_applications_for_query", fake_fetch_applications_for_query
-    )
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
     monkeypatch.setattr(main, "send_resend_email", fail_send_resend_email)
 
     output_path = tmp_path / "applications.html"
@@ -310,17 +345,21 @@ def test_cli_both_status_renders_two_sections(
     """CLI should fetch validated then decided results and render both sections."""
     seen_modes: list[str] = []
 
-    def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
-        seen_modes.append(query.status_mode)
-        if query.status_mode == "validated":
-            return [application_factory(application_ref={"value": "26/00281/FUL"})]
-        return [application_factory(application_ref={"value": "26/00282/FUL"})]
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        seen_modes.extend(query.status_mode for query in options.queries)
+        validated = [application_factory(application_ref={"value": "26/00281/FUL"})]
+        decided = [application_factory(application_ref={"value": "26/00282/FUL"})]
+        return PlanningReport(
+            applications=validated + decided,
+            sections=[
+                ApplicationSection(
+                    title="Validated applications", applications=validated
+                ),
+                ApplicationSection(title="Decided applications", applications=decided),
+            ],
+        )
 
-    monkeypatch.setattr(
-        main, "fetch_applications_for_query", fake_fetch_applications_for_query
-    )
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
 
     output_path = tmp_path / "applications.html"
     monkeypatch.setattr(
@@ -348,15 +387,14 @@ def test_cli_single_status_marks_other_section_not_searched(
     """Single-status runs should still render both sections with a skipped marker."""
     seen_modes: list[str] = []
 
-    def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
-        seen_modes.append(query.status_mode)
-        return [application_factory(application_ref={"value": "26/00281/FUL"})]
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        seen_modes.extend(query.status_mode for query in options.queries)
+        return build_report_from_applications(
+            [application_factory(application_ref={"value": "26/00281/FUL"})],
+            status_mode="validated",
+        )
 
-    monkeypatch.setattr(
-        main, "fetch_applications_for_query", fake_fetch_applications_for_query
-    )
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
 
     output_path = tmp_path / "applications.html"
     monkeypatch.setattr(
@@ -385,15 +423,11 @@ def test_cli_both_status_renders_two_empty_sections(
     """CLI should still render both sections in both-mode when both are empty."""
     seen_modes: list[str] = []
 
-    def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
-        seen_modes.append(query.status_mode)
-        return []
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        seen_modes.extend(query.status_mode for query in options.queries)
+        return build_report_from_applications([], status_mode="both")
 
-    monkeypatch.setattr(
-        main, "fetch_applications_for_query", fake_fetch_applications_for_query
-    )
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
 
     output_path = tmp_path / "applications.html"
     monkeypatch.setattr(
@@ -433,17 +467,17 @@ def test_cli_uses_explicit_config_file(
         encoding="utf-8",
     )
 
-    def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        query = options.queries[0]
         assert query.ward_name == "churchill"
         assert query.parish_name == "Littlemore"
         assert query.status_mode == "decided"
-        return [application_factory()]
+        return build_report_from_applications(
+            [application_factory()],
+            status_mode="decided",
+        )
 
-    monkeypatch.setattr(
-        main, "fetch_applications_for_query", fake_fetch_applications_for_query
-    )
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
     output_path = tmp_path / "planning_applications.html"
     monkeypatch.setattr(
         main,
@@ -477,12 +511,14 @@ def test_cli_arguments_override_config(
         encoding="utf-8",
     )
 
-    def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        query = options.queries[0]
         assert query.ward_name == "marston"
         assert query.status_mode == "decided"
-        return [application_factory()]
+        return build_report_from_applications(
+            [application_factory()],
+            status_mode="decided",
+        )
 
     sent_payload: dict[str, str] = {}
 
@@ -499,9 +535,7 @@ def test_cli_arguments_override_config(
         return "email_456"
 
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
-    monkeypatch.setattr(
-        main, "fetch_applications_for_query", fake_fetch_applications_for_query
-    )
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
     monkeypatch.setattr(main, "send_resend_email", fake_send_resend_email)
 
     output_path = tmp_path / "from-cli.html"

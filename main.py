@@ -18,7 +18,7 @@ from email_sender import (
 )
 from html_render import build_search_criteria, render_application_html
 from models import Application, ApplicationSection, CliInputs, CliStatusMode
-from scraper import fetch_latest_applications
+from scraper import fetch_applications_for_query, merge_applications
 
 app = typer.Typer(
     add_completion=False,
@@ -120,28 +120,44 @@ def run(
         "validated": "Validated applications",
         "decided": "Decided applications",
     }
-    sections: list[ApplicationSection] = []
-    applications: list[Application] = []
+    applications_by_status: dict[str, list[Application]] = {
+        "validated": [],
+        "decided": [],
+    }
+
+    # Run queries and put in the right section
     try:
-        if options.status_mode == "both":
-            applications = []
-            for query in options.queries:
-                section_applications = fetch_latest_applications(query)
-                sections.append(
-                    ApplicationSection(
-                        title=section_titles[query.status_mode],
-                        applications=section_applications,
-                    )
-                )
-                applications.extend(section_applications)
-        else:
-            applications = fetch_latest_applications(options.queries[0])
+        for query in options.queries:
+            section_applications = fetch_applications_for_query(
+                query=query,
+                debug=options.debug,
+            )
+            applications_by_status[query.status_mode] = merge_applications(
+                applications_by_status[query.status_mode],
+                section_applications,
+            )
     except (ValueError, ValidationError) as exc:
         typer.secho(f"Error: {exc}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
     except requests.RequestException as exc:
         typer.secho(f"Request failed: {exc}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
+
+    sections = [
+        ApplicationSection(
+            title=section_titles[status_mode],
+            applications=applications_by_status[status_mode],
+            empty_state_message=(
+                "No applications"
+                if options.status_mode == "both" or status_mode == options.status_mode
+                else "Not searched"
+            ),
+        )
+        for status_mode in ["validated", "decided"]
+    ]
+    applications = (
+        applications_by_status["validated"] + applications_by_status["decided"]
+    )
 
     generated_at = datetime.now()
     output_path = build_default_output_path(generated_at=generated_at)
@@ -151,7 +167,7 @@ def run(
     )
     html_output = render_application_html(
         applications,
-        sections=sections or None,
+        sections=sections,
         search_criteria=search_criteria,
     )
 
@@ -169,7 +185,7 @@ def run(
         )
         text_output = build_plain_text_email(
             applications=applications,
-            sections=sections or None,
+            sections=sections,
             generated_at=generated_at,
             search_criteria=search_criteria,
         )

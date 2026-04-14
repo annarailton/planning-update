@@ -55,34 +55,61 @@ def load_cli_config(path: Path | None = None) -> CliConfig:
 def resolve_cli_options(
     *, cli_inputs: CliInputs, cli_config: CliConfig
 ) -> ResolvedCliOptions:
-    """Merge raw CLI inputs with config defaults into runtime options."""
-    status_mode = cli_inputs.status or cli_config.status_mode or "both"
+    """Merge raw CLI inputs with config defaults into runtime options.
 
-    base_query = PlanningQuery(
-        ward_name=(cli_inputs.ward if cli_inputs.ward is not None else cli_config.ward),
-        parish_name=(
-            cli_inputs.parish if cli_inputs.parish is not None else cli_config.parish
-        ),
-        requested_week=(
-            cli_inputs.week if cli_inputs.week is not None else cli_config.week
-        ),
-        keywords=parse_keywords(
-            cli_inputs.keywords
-            if cli_inputs.keywords is not None
-            else cli_config.keywords
-        ),
-        status_mode="validated",
+    This resolves each CLI field against the config file, normalizes keywords once,
+    and expands the resulting query set for the scraper.
+
+    Query expansion works like this:
+
+    | Input mode    | Query scopes                                                           |
+    | ------------- | ---------------------------------------------------------------------- |
+    | keyword only  | One all-ward/all-parish keyword scope                                  |
+    | location only | One location-filtered scope                                            |
+    | both          | One all-ward/all-parish keyword scope plus one location-filtered scope |
+
+    If we have both we do the location-filtered queries first.
+    """
+    status_mode = cli_inputs.status or cli_config.status_mode or "both"
+    ward_name = cli_inputs.ward if cli_inputs.ward is not None else cli_config.ward
+    parish_name = (
+        cli_inputs.parish if cli_inputs.parish is not None else cli_config.parish
+    )
+    requested_week = cli_inputs.week if cli_inputs.week is not None else cli_config.week
+    keywords = parse_keywords(
+        cli_inputs.keywords if cli_inputs.keywords is not None else cli_config.keywords
     )
 
-    if base_query.keywords:
-        status_mode = "both"
+    query_variants: list[dict[str, object]] = []
+    if ward_name is not None or parish_name is not None or not keywords:
+        # Add an explicit location-filtered query when requested, or fall back to
+        # the default all-ward/all-parish query when no keyword scope exists.
+        query_variants.append(
+            {
+                "ward_name": ward_name,
+                "parish_name": parish_name,
+                "requested_week": requested_week,
+            }
+        )
+    if keywords:
+        # Keyword searches always run across all wards/parishes.
+        query_variants.append(
+            {
+                "keywords": keywords,
+                "requested_week": requested_week,
+            }
+        )
 
-    queries = [base_query.model_copy(update={"status_mode": status_mode})]
+    queries: list[PlanningQuery] = []
     if status_mode == "both":
-        queries = [
-            base_query.model_copy(update={"status_mode": "validated"}),
-            base_query.model_copy(update={"status_mode": "decided"}),
-        ]
+        # Preserve a stable output order: all validated queries first, then decided.
+        for query_variant in query_variants:
+            queries.append(PlanningQuery(**query_variant, status_mode="validated"))
+        for query_variant in query_variants:
+            queries.append(PlanningQuery(**query_variant, status_mode="decided"))
+    else:
+        for query_variant in query_variants:
+            queries.append(PlanningQuery(**query_variant, status_mode=status_mode))
 
     return ResolvedCliOptions(
         debug=cli_inputs.debug or cli_config.debug is True,

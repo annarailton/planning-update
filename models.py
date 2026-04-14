@@ -237,3 +237,4 @@ class ApplicationSection(BaseModel):
 
     title: str
     applications: list[Application]
+    empty_state_message: str = "No applications"

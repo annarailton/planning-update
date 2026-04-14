@@ -21,7 +21,6 @@ def test_cli_writes_html_output_file(
     def fake_fetch_latest_applications(query: PlanningQuery) -> list[Application]:
         assert query.ward_name == "churchill"
         assert query.status_mode == "decided"
-        assert query.strict is True
         return [application_factory()]
 
     monkeypatch.setattr(
@@ -37,7 +36,6 @@ def test_cli_writes_html_output_file(
             "churchill",
             "--status",
             "decided",
-            "--strict",
             "--output",
             str(output_path),
         ],
@@ -53,7 +51,6 @@ def test_cli_writes_html_output_file(
     assert "Search criteria" in html
     assert "Churchill" in html
     assert "Decided in this week" in html
-    assert "Yes" in html
     assert "26/00281/FUL" in html
     assert "Churchill Ward" in html
     assert "Approved" in html
@@ -300,8 +297,6 @@ def test_cli_uses_explicit_config_file(
                 'parish = "Littlemore"',
                 "debug = true",
                 'status_mode = "decided"',
-                "fallback_weeks = 3",
-                "strict = true",
             ]
         ),
         encoding="utf-8",
@@ -311,8 +306,6 @@ def test_cli_uses_explicit_config_file(
         assert query.ward_name == "churchill"
         assert query.parish_name == "Littlemore"
         assert query.status_mode == "decided"
-        assert query.fallback_weeks == 3
-        assert query.strict is True
         return [application_factory()]
 
     monkeypatch.setattr(
@@ -340,8 +333,6 @@ def test_cli_arguments_override_config(
             [
                 'ward = "churchill"',
                 'status_mode = "validated"',
-                "fallback_weeks = 4",
-                "strict = true",
                 'output = "from-config.html"',
                 'email_to = "config@example.com"',
             ]
@@ -352,8 +343,6 @@ def test_cli_arguments_override_config(
     def fake_fetch_latest_applications(query: PlanningQuery) -> list[Application]:
         assert query.ward_name == "marston"
         assert query.status_mode == "decided"
-        assert query.fallback_weeks == 0
-        assert query.strict is False
         return [application_factory()]
 
     sent_payload: dict[str, str] = {}
@@ -386,9 +375,6 @@ def test_cli_arguments_override_config(
             "marston",
             "--status",
             "decided",
-            "--fallback-weeks",
-            "0",
-            "--no-strict",
             "--output",
             str(output_path),
             "--email-to",

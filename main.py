@@ -76,22 +76,6 @@ def run(
             help="Exact week value from the dropdown, for example '30 Mar 2026'."
         ),
     ] = None,
-    fallback_weeks: Annotated[
-        int | None,
-        typer.Option(
-            help=(
-                "How many earlier weeks to try when the latest available week has no "
-                "results. Default: 1."
-            )
-        ),
-    ] = None,
-    strict: Annotated[
-        bool | None,
-        typer.Option(
-            "--strict/--no-strict",
-            help="Do not fall back to an earlier week when the first checked week has no results.",
-        ),
-    ] = None,
     output: Annotated[
         Path | None,
         typer.Option(
@@ -124,8 +108,6 @@ def run(
                 parish=parish,
                 status=status,
                 week=week,
-                fallback_weeks=fallback_weeks,
-                strict=strict,
                 output=output,
                 email_to=email_to,
             ),

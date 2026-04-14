@@ -25,8 +25,8 @@ The lookup data lives in [ward_mappings.json](/Users/annarailton/projects/planni
 and [location_lookup.py](/Users/annarailton/projects/planning-update/location_lookup.py) loads it for the scraper.
 
 By default it checks the latest week in the dropdown and falls back one week if there are
-no results, which matches the current need to use `30 Mar 2026` when the most recent week
-is empty. When that fallback happens, the CLI logs which week it is falling back from and to.
+no results only if you explicitly select a different week. Otherwise it uses the latest
+available week from the dropdown.
 
 ## Query flow
 
@@ -69,7 +69,6 @@ python main.py --ward "churchill" --parish "Littlemore"
 python main.py --week "30 Mar 2026"
 python main.py --status decided
 python main.py --status both
-python main.py --strict
 ```
 
 ## Config file
@@ -86,8 +85,6 @@ debug = true
 ward = "churchill"
 parish = "Littlemore"
 status_mode = "validated"
-fallback_weeks = 1
-strict = false
 email_to = "example@gmail.com"
 ```
 
@@ -104,5 +101,5 @@ Examples with config:
 ```bash
 uv run oxford-weekly --config planning_update.toml --debug --output latest.html
 uv run oxford-weekly --config /path/to/planning_update.toml --status decided
-python main.py --config planning_update.toml --no-strict
+python main.py --config planning_update.toml
 ```

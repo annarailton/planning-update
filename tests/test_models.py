@@ -87,17 +87,15 @@ def test_planning_query_build_search_payload_uses_resolved_codes() -> None:
     }
 
 
-def test_planning_query_candidate_weeks_uses_requested_week_when_present() -> None:
+def test_planning_query_selected_week_uses_requested_week_when_present() -> None:
     """PlanningQuery should prefer an explicitly requested week."""
-    query = PlanningQuery(requested_week="30 Mar 2026", fallback_weeks=3)
+    query = PlanningQuery(requested_week="30 Mar 2026")
 
-    assert query.candidate_weeks(["06 Apr 2026", "30 Mar 2026"]) == ["30 Mar 2026"]
+    assert query.selected_week(["06 Apr 2026", "30 Mar 2026"]) == "30 Mar 2026"
 
 
-def test_planning_query_candidate_weeks_uses_fallback_window() -> None:
-    """PlanningQuery should return the requested fallback window from available weeks."""
-    query = PlanningQuery(fallback_weeks=2)
+def test_planning_query_selected_week_uses_latest_available_week() -> None:
+    """PlanningQuery should use the latest available week by default."""
+    query = PlanningQuery()
 
-    assert query.candidate_weeks(
-        ["06 Apr 2026", "30 Mar 2026", "23 Mar 2026", "16 Mar 2026"]
-    ) == ["06 Apr 2026", "30 Mar 2026", "23 Mar 2026"]
+    assert query.selected_week(["06 Apr 2026", "30 Mar 2026"]) == "06 Apr 2026"

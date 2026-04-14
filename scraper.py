@@ -1,6 +1,5 @@
 """HTTP and orchestration logic for the Oxford planning application scraper."""
 
-import logging
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
@@ -15,8 +14,6 @@ from parser import (
     extract_pagination_urls,
     extract_summary_fields,
 )
-
-logger = logging.getLogger(__name__)
 
 
 def fetch_form(session: requests.Session) -> tuple[str, list[str]]:
@@ -144,7 +141,7 @@ def enrich_application(
 
 
 def fetch_latest_applications(query: PlanningQuery) -> list[Application]:
-    """Fetch applications from the first queried week with results.
+    """Fetch applications for the selected or latest available week.
 
     Args:
         query: User-facing query options for the weekly list search.
@@ -156,35 +153,15 @@ def fetch_latest_applications(query: PlanningQuery) -> list[Application]:
     session.headers.update({"User-Agent": "planning-update/0.1"})
 
     csrf_token, weeks = fetch_form(session)
-    candidate_weeks = query.candidate_weeks(weeks)
-    resolved_ward_name = query.resolved_ward_name()
-    resolved_parish_name = query.resolved_parish_name()
-
-    for index, week in enumerate(candidate_weeks):
-        html, page_url = fetch_results_page(
-            session,
-            query=query,
-            csrf_token=csrf_token,
-            week=week,
-        )
-        applications = extract_applications(html, week, page_url)
-        for pagination_url in extract_pagination_urls(html, page_url):
-            next_html, next_page_url = fetch_page(session, pagination_url)
-            applications.extend(extract_applications(next_html, week, next_page_url))
-        applications = [
-            enrich_application(session, application) for application in applications
-        ]
-        if applications:
-            return applications
-        if query.strict:
-            return []
-        if query.requested_week is None and index + 1 < len(candidate_weeks):
-            target_area = resolved_ward_name
-            if query.parish_name:
-                target_area = f"{resolved_ward_name} / {resolved_parish_name}"
-            logger.info(  # pyright: ignore[reportCallIssue]
-                f"No results for week {week} in {target_area}, "
-                f"falling back to {candidate_weeks[index + 1]}"
-            )
-
-    return []
+    week = query.selected_week(weeks)
+    html, page_url = fetch_results_page(
+        session,
+        query=query,
+        csrf_token=csrf_token,
+        week=week,
+    )
+    applications = extract_applications(html, week, page_url)
+    for pagination_url in extract_pagination_urls(html, page_url):
+        next_html, next_page_url = fetch_page(session, pagination_url)
+        applications.extend(extract_applications(next_html, week, next_page_url))
+    return [enrich_application(session, application) for application in applications]

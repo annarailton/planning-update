@@ -103,8 +103,6 @@ def build_search_criteria(
         "Parish": query.resolved_parish_name(),
         "Mode": mode,
         "Week": query.requested_week or "Latest available",
-        "Fallback weeks": str(query.fallback_weeks),
-        "Strict mode": "Yes" if query.strict else "No",
     }
 
 

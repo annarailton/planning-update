@@ -38,17 +38,6 @@ def resolve_cli_options(
     """Merge raw CLI inputs with config defaults into runtime options."""
     status_mode = cli_inputs.status or cli_config.status_mode or "both"
 
-    fallback_weeks = (
-        cli_inputs.fallback_weeks
-        if cli_inputs.fallback_weeks is not None
-        else cli_config.fallback_weeks if cli_config.fallback_weeks is not None else 1
-    )
-    strict = (
-        cli_inputs.strict
-        if cli_inputs.strict is not None
-        else cli_config.strict if cli_config.strict is not None else False
-    )
-
     base_query = PlanningQuery(
         ward_name=(cli_inputs.ward if cli_inputs.ward is not None else cli_config.ward),
         parish_name=(
@@ -57,8 +46,6 @@ def resolve_cli_options(
         requested_week=(
             cli_inputs.week if cli_inputs.week is not None else cli_config.week
         ),
-        fallback_weeks=max(0, fallback_weeks),
-        strict=strict,
         status_mode="validated",
     )
 

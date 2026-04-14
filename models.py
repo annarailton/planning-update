@@ -102,8 +102,6 @@ class PlanningQuery(BaseModel):
     ward_name: str | None = None
     parish_name: str | None = None
     requested_week: str | None = None
-    fallback_weeks: int = 1
-    strict: bool = False
     status_mode: ApplicationStatusMode = "validated"
 
     def resolve_ward_code(self) -> str:
@@ -148,18 +146,18 @@ class PlanningQuery(BaseModel):
             return "All parishes"
         return PARISH_CODE_TO_NAME[parish_code]
 
-    def candidate_weeks(self, available_weeks: list[str]) -> list[str]:
-        """Return the ordered week values this query should try.
+    def selected_week(self, available_weeks: list[str]) -> str:
+        """Return the week value this query should use.
 
         Args:
             available_weeks: Week labels available from the weekly-list form.
 
         Returns:
-            The ordered week labels to query.
+            The selected week label to query.
         """
         if self.requested_week is not None:
-            return [self.requested_week]
-        return available_weeks[: max(1, self.fallback_weeks + 1)]
+            return self.requested_week
+        return available_weeks[0]
 
     def build_search_payload(self, *, csrf_token: str, week: str) -> dict[str, str]:
         """Build the weekly-list form payload for a single query attempt.
@@ -191,20 +189,8 @@ class CliConfig(BaseModel):
     parish: str | None = None
     status_mode: CliStatusMode | None = None
     week: str | None = None
-    fallback_weeks: int | None = None
-    strict: bool | None = None
     output: Path | None = None
     email_to: str | None = None
-
-    @field_validator("fallback_weeks")
-    @classmethod
-    def validate_fallback_weeks(cls, value: int | None) -> int | None:
-        """Ensure configured fallback weeks are non-negative."""
-        if value is None:
-            return None
-        if value < 0:
-            raise ValueError("fallback_weeks must be greater than or equal to 0")
-        return value
 
 
 class CliInputs(BaseModel):
@@ -215,8 +201,6 @@ class CliInputs(BaseModel):
     parish: str | None = None
     status: CliStatusMode | None = None
     week: str | None = None
-    fallback_weeks: int | None = None
-    strict: bool | None = None
     output: Path | None = None
     email_to: str | None = None
 

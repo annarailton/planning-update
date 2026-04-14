@@ -161,8 +161,6 @@ def test_render_application_html_shows_search_criteria_in_header(
                 "Parish": "All parishes",
                 "Mode": "Decided in this week",
                 "Week": "30 Mar 2026",
-                "Fallback weeks": "1",
-                "Strict mode": "Yes",
             },
         )
     finally:

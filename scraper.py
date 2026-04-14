@@ -156,33 +156,3 @@ def fetch_applications_for_query(
     if debug:
         return fetch_latest_applications_cached(query)
     return fetch_latest_applications(query)
-
-
-def merge_applications(
-    existing: list[Application], new: list[Application]
-) -> list[Application]:
-    """Merge application lists by reference while preserving first-seen order."""
-    merged: dict[str, Application] = {
-        application.application_ref.value: application for application in existing
-    }
-    ordered_refs = [application.application_ref.value for application in existing]
-
-    for application in new:
-        application_ref = application.application_ref.value
-        if application_ref not in merged:
-            merged[application_ref] = application
-            ordered_refs.append(application_ref)
-            continue
-
-        current = merged[application_ref]
-        keyword_matches = list(current.keyword_matches or [])
-        for keyword in application.keyword_matches or []:
-            if keyword not in keyword_matches:
-                keyword_matches.append(keyword)
-        merged[application_ref] = Application.model_validate(
-            current.model_dump()
-            | application.model_dump(exclude_none=True)
-            | {"keyword_matches": keyword_matches or None}
-        )
-
-    return [merged[application_ref] for application_ref in ordered_refs]

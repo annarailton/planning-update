@@ -1,12 +1,42 @@
-"""Service-layer orchestration for planning application reports."""
+"""Service-layer orchestration for bulding planning application reports."""
 
 from models import Application, ApplicationSection, PlanningReport, ResolvedCliOptions
-from scraper import fetch_applications_for_query, merge_applications
+from scraper import fetch_applications_for_query
 
 SECTION_TITLES = {
     "validated": "Validated applications",
     "decided": "Decided applications",
 }
+
+
+def merge_applications(
+    existing: list[Application], new: list[Application]
+) -> list[Application]:
+    """Merge application lists by reference while preserving first-seen order."""
+    merged: dict[str, Application] = {
+        application.application_ref.value: application for application in existing
+    }
+    ordered_refs = [application.application_ref.value for application in existing]
+
+    for application in new:
+        application_ref = application.application_ref.value
+        if application_ref not in merged:
+            merged[application_ref] = application
+            ordered_refs.append(application_ref)
+            continue
+
+        current = merged[application_ref]
+        keyword_matches = list(current.keyword_matches or [])
+        for keyword in application.keyword_matches or []:
+            if keyword not in keyword_matches:
+                keyword_matches.append(keyword)
+        merged[application_ref] = Application.model_validate(
+            current.model_dump()
+            | application.model_dump(exclude_none=True)
+            | {"keyword_matches": keyword_matches or None}
+        )
+
+    return [merged[application_ref] for application_ref in ordered_refs]
 
 
 def build_planning_report(*, options: ResolvedCliOptions) -> PlanningReport:

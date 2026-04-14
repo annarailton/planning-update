@@ -8,7 +8,7 @@ from models import (
     PlanningQuery,
     ResolvedCliOptions,
 )
-from report_service import build_planning_report
+from report_service import build_planning_report, merge_applications
 
 
 def test_build_planning_report_builds_sections_for_both_statuses(
@@ -79,3 +79,22 @@ def test_build_planning_report_marks_unsearched_section(
 
     assert report.sections[0].empty_state_message == "No applications"
     assert report.sections[1].empty_state_message == "Not searched"
+
+
+def test_merge_applications_deduplicates_and_merges_keyword_matches(
+    application_factory: Callable[..., Application]
+) -> None:
+    """Merging should preserve first-seen order and combine keyword matches."""
+    existing = [application_factory(keyword_matches=["pv"])]
+    new = [
+        application_factory(
+            keyword_matches=["ashp", "pv"],
+            consultation_deadline=None,
+        )
+    ]
+
+    merged = merge_applications(existing, new)
+
+    assert len(merged) == 1
+    assert merged[0].application_ref.value == "26/00281/FUL"
+    assert merged[0].keyword_matches == ["pv", "ashp"]

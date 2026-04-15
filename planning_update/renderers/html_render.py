@@ -108,6 +108,7 @@ def major_application_css_class(is_major_application: bool) -> str:
 def build_search_criteria(
     *,
     options: ResolvedCliOptions,
+    actual_week: str | None = None,
 ) -> dict[str, str]:
     """Build the rendered search criteria summary for the HTML output."""
     queries = options.queries
@@ -134,7 +135,7 @@ def build_search_criteria(
         **({"Keywords": ", ".join(keywords)} if keywords else {}),
         **({"Major applications": "Yes"} if includes_major else {}),
         "Mode": mode,
-        "Week": primary_query.requested_week or "Latest available",
+        "Week": actual_week or primary_query.requested_week or "Latest available",
     }
 
 

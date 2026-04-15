@@ -132,6 +132,7 @@ def run(
     output_path = build_default_output_path(generated_at=generated_at)
     search_criteria = build_search_criteria(
         options=options,
+        actual_week=report.actual_week,
     )
     html_output = render_application_html(
         report.applications,

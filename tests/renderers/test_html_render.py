@@ -190,6 +190,24 @@ def test_build_search_criteria_includes_keywords_and_major_from_all_queries() ->
     }
 
 
+def test_build_search_criteria_prefers_actual_week_when_available() -> None:
+    """Search criteria should show the actual selected week from the live query."""
+    search_criteria = html_render.build_search_criteria(
+        options=ResolvedCliOptions(
+            status_mode="validated",
+            queries=[
+                PlanningQuery(
+                    ward_name="churchill",
+                    status_mode="validated",
+                ),
+            ],
+        ),
+        actual_week="07 Apr 2026",
+    )
+
+    assert search_criteria["Week"] == "07 Apr 2026"
+
+
 def test_render_application_html_shows_search_criteria_in_header(
     application_factory: Callable[..., Application],
 ) -> None:

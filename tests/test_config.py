@@ -136,7 +136,7 @@ def test_resolve_cli_options_builds_keyword_and_ward_queries_for_both_statuses()
 
 
 def test_resolve_cli_options_builds_major_scope_alongside_ward_queries() -> None:
-    """Major searches should add an all-wards major query beside location queries."""
+    """Major searches should add only a validated all-wards major query."""
     options = resolve_cli_options(
         cli_inputs=CliInputs(
             ward="Hinksey Park",
@@ -159,15 +159,11 @@ def test_resolve_cli_options_builds_major_scope_alongside_ward_queries() -> None
             ward_name="Hinksey Park",
             status_mode="decided",
         ),
-        PlanningQuery(
-            major=True,
-            status_mode="decided",
-        ),
     ]
 
 
 def test_resolve_cli_options_major_only_query() -> None:
-    """Major-only runs should only include major queries."""
+    """Major-only runs should only include a validated major query."""
     options = resolve_cli_options(
         cli_inputs=CliInputs(),
         cli_config=CliConfig(major=True),
@@ -176,7 +172,40 @@ def test_resolve_cli_options_major_only_query() -> None:
     assert options.status_mode == "both"
     assert options.queries == [
         PlanningQuery(major=True, status_mode="validated"),
-        PlanningQuery(major=True, status_mode="decided"),
+    ]
+
+
+def test_resolve_cli_options_ignores_major_for_decided_only_runs() -> None:
+    """Decided-only runs should not add a major query."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(status="decided"),
+        cli_config=CliConfig(major=True),
+    )
+
+    assert options.status_mode == "decided"
+    assert options.queries == [
+        PlanningQuery(status_mode="decided"),
+    ]
+
+
+def test_resolve_cli_options_decided_keywords_keep_keyword_query_but_drop_major() -> (
+    None
+):
+    """Decided keyword runs should keep keywords but strip any decided major query."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(
+            status="decided",
+            keywords="photovoltaics, heat pump",
+        ),
+        cli_config=CliConfig(major=True),
+    )
+
+    assert options.status_mode == "decided"
+    assert options.queries == [
+        PlanningQuery(
+            keywords=["photovoltaics", "heat pump"],
+            status_mode="decided",
+        ),
     ]
 
 

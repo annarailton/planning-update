@@ -82,7 +82,11 @@ def resolve_cli_options(
     major = cli_inputs.major if cli_inputs.major is not None else cli_config.major
 
     query_variants: list[dict[str, object]] = []
-    if ward_name is not None or parish_name is not None or (not keywords and not major):
+    if (
+        ward_name is not None
+        or parish_name is not None
+        or (not keywords and (not major or status_mode == "decided"))
+    ):
         # Add an explicit location-filtered query when requested, or fall back to
         # the default all-ward/all-parish query when no keyword/major scope exists.
         query_variants.append(
@@ -109,7 +113,6 @@ def resolve_cli_options(
                 "requested_week": requested_week,
             }
         )
-
     queries: list[PlanningQuery] = []
     if status_mode == "both":
         # Preserve a stable output order: all validated queries first, then decided.
@@ -120,6 +123,15 @@ def resolve_cli_options(
     else:
         for query_variant in query_variants:
             queries.append(PlanningQuery(**query_variant, status_mode=status_mode))
+
+    # Slight bodge to filter out any major + decided queries which don't make
+    # sense as once decided will be removed from list.
+    # This was more readable than adding more logic above.
+    queries = [
+        query
+        for query in queries
+        if not (query.major and query.status_mode == "decided")
+    ]
 
     return ResolvedCliOptions(
         debug=cli_inputs.debug or cli_config.debug is True,

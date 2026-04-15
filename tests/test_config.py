@@ -20,6 +20,7 @@ def test_load_cli_config_reads_top_level_values(tmp_path: Path) -> None:
                 'status_mode = "decided"',
                 'week = "30 Mar 2026"',
                 'keywords = "photovoltaics, heat pump, ASHP, PV"',
+                "major = true",
                 'email_to = "anna@example.com"',
             ]
         ),
@@ -34,6 +35,7 @@ def test_load_cli_config_reads_top_level_values(tmp_path: Path) -> None:
     assert config.status_mode == "decided"
     assert config.week == "30 Mar 2026"
     assert config.keywords == "photovoltaics, heat pump, ASHP, PV"
+    assert config.major is True
     assert config.email_to == "anna@example.com"
 
 
@@ -130,6 +132,51 @@ def test_resolve_cli_options_builds_keyword_and_ward_queries_for_both_statuses()
             keywords=["photovoltaics", "heat pump", "ashp", "pv", "solar panels"],
             status_mode="decided",
         ),
+    ]
+
+
+def test_resolve_cli_options_builds_major_scope_alongside_ward_queries() -> None:
+    """Major searches should add an all-wards major query beside location queries."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(
+            ward="Hinksey Park",
+            status="both",
+        ),
+        cli_config=CliConfig(major=True),
+    )
+
+    assert options.status_mode == "both"
+    assert options.queries == [
+        PlanningQuery(
+            ward_name="Hinksey Park",
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            major=True,
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            ward_name="Hinksey Park",
+            status_mode="decided",
+        ),
+        PlanningQuery(
+            major=True,
+            status_mode="decided",
+        ),
+    ]
+
+
+def test_resolve_cli_options_major_only_query() -> None:
+    """Major-only runs should only include major queries."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(),
+        cli_config=CliConfig(major=True),
+    )
+
+    assert options.status_mode == "both"
+    assert options.queries == [
+        PlanningQuery(major=True, status_mode="validated"),
+        PlanningQuery(major=True, status_mode="decided"),
     ]
 
 

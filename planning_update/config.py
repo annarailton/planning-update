@@ -79,11 +79,12 @@ def resolve_cli_options(
     keywords = parse_keywords(
         cli_inputs.keywords if cli_inputs.keywords is not None else cli_config.keywords
     )
+    major = cli_inputs.major if cli_inputs.major is not None else cli_config.major
 
     query_variants: list[dict[str, object]] = []
-    if ward_name is not None or parish_name is not None or not keywords:
+    if ward_name is not None or parish_name is not None or (not keywords and not major):
         # Add an explicit location-filtered query when requested, or fall back to
-        # the default all-ward/all-parish query when no keyword scope exists.
+        # the default all-ward/all-parish query when no keyword/major scope exists.
         query_variants.append(
             {
                 "ward_name": ward_name,
@@ -96,6 +97,15 @@ def resolve_cli_options(
         query_variants.append(
             {
                 "keywords": keywords,
+                "requested_week": requested_week,
+            }
+        )
+    if major:
+        # Major-application matching runs against the current major application
+        # list so it always searches across all wards/parishes first.
+        query_variants.append(
+            {
+                "major": True,
                 "requested_week": requested_week,
             }
         )

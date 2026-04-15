@@ -155,6 +155,27 @@ def test_planning_query_keyword_mode_ignores_ward_and_parish_filters() -> None:
     }
 
 
+def test_planning_query_major_mode_ignores_ward_and_parish_filters() -> None:
+    """Major matching should search across all wards and parishes."""
+    query = PlanningQuery(
+        ward_name="churchill",
+        parish_name="littlemore",
+        major=True,
+    )
+
+    assert query.build_search_payload(
+        csrf_token="token-123",
+        week="30 Mar 2026",
+    ) == {
+        "_csrf": "token-123",
+        "searchCriteria.parish": "",
+        "searchCriteria.ward": "",
+        "week": "30 Mar 2026",
+        "dateType": "DC_Validated",
+        "searchType": "Application",
+    }
+
+
 def test_planning_query_matching_keywords_returns_lowercase_matches() -> None:
     """Keyword matching should return normalized lowercase keyword hits."""
     query = PlanningQuery(keywords=["photovoltaics", "heat pump", "ashp", "pv"])

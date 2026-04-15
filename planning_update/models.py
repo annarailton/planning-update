@@ -65,6 +65,7 @@ class Application(BaseModel):
     status: str | None = None
     decision: str | None = None
     keyword_matches: list[str] | None = None
+    is_major_application: bool = False
 
     @field_validator(
         "received",
@@ -112,11 +113,16 @@ class PlanningQuery(BaseModel):
     parish_name: str | None = None
     requested_week: str | None = None
     keywords: list[str] = Field(default_factory=list)
+    major: bool = False
     status_mode: ApplicationStatusMode = "validated"
 
     def uses_keyword_matching(self) -> bool:
         """Return whether this query should apply proposal keyword matching."""
         return bool(self.keywords)
+
+    def uses_major_matching(self) -> bool:
+        """Return whether this query should filter to current major applications."""
+        return self.major
 
     def resolve_ward_code(self) -> str:
         """Resolve the configured ward name to an Oxford ward code.
@@ -124,7 +130,7 @@ class PlanningQuery(BaseModel):
         Returns:
             The resolved ward code, or an empty string for all wards.
         """
-        if self.uses_keyword_matching():
+        if self.uses_keyword_matching() or self.uses_major_matching():
             return ""
         if self.ward_name is None:
             return ""
@@ -136,7 +142,7 @@ class PlanningQuery(BaseModel):
         Returns:
             The resolved parish code, or an empty string for all parishes.
         """
-        if self.uses_keyword_matching():
+        if self.uses_keyword_matching() or self.uses_major_matching():
             return ""
         if self.parish_name is None:
             return ""
@@ -148,7 +154,7 @@ class PlanningQuery(BaseModel):
         Returns:
             The canonical ward name, or ``All wards`` when no ward is set.
         """
-        if self.uses_keyword_matching():
+        if self.uses_keyword_matching() or self.uses_major_matching():
             return "All wards"
         ward_code = self.resolve_ward_code()
         if not ward_code:
@@ -161,7 +167,7 @@ class PlanningQuery(BaseModel):
         Returns:
             The canonical parish name, or ``All parishes`` when no parish is set.
         """
-        if self.uses_keyword_matching():
+        if self.uses_keyword_matching() or self.uses_major_matching():
             return "All parishes"
         parish_code = self.resolve_parish_code()
         if not parish_code:
@@ -217,6 +223,7 @@ class CliConfig(BaseModel):
     status_mode: CliStatusMode | None = None
     week: str | None = None
     keywords: str | list[str] | None = None
+    major: bool | None = None
     email_to: str | None = None
 
 
@@ -229,6 +236,7 @@ class CliInputs(BaseModel):
     status: CliStatusMode | None = None
     week: str | None = None
     keywords: str | list[str] | None = None
+    major: bool | None = None
     email_to: str | None = None
 
 

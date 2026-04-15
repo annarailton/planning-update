@@ -29,7 +29,7 @@ def build_plain_text_email(
     lines = [
         "Oxford Planning Applications",
         "",
-        f"Found {len(applications)} application{'s' if len(applications) != 1 else ''}.",
+        f"Found {len(applications)} application{'s' if len(applications) != 1 else ''} of interest.",
     ]
 
     if search_criteria:

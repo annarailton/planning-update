@@ -5,12 +5,32 @@ from datetime import date
 from bs4 import BeautifulSoup
 
 from planning_update.parsing.parser import (
+    extract_form_values,
     extract_further_information,
     extract_major_application_refs,
     extract_search_result_cards,
     extract_summary_application,
     extract_summary_values,
 )
+
+
+def test_extract_form_values_reads_week_options_from_weekly_list_page() -> None:
+    """Weekly-list parsing should extract the CSRF token and available weeks."""
+    csrf_token, weeks = extract_form_values(
+        """
+        <form>
+          <input type="hidden" name="_csrf" value="csrf-123" />
+          <select id="week" name="week">
+            <option value="">Select one</option>
+            <option value="13 Apr 2026">13 Apr 2026</option>
+            <option value="06 Apr 2026">06 Apr 2026</option>
+          </select>
+        </form>
+        """
+    )
+
+    assert csrf_token == "csrf-123"
+    assert weeks == ["13 Apr 2026", "06 Apr 2026"]
 
 
 def test_extract_search_result_cards_leaves_summary_only_fields_empty() -> None:

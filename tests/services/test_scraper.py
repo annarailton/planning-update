@@ -4,13 +4,15 @@ from collections.abc import Callable
 
 import requests
 
-from planning_update.models import Application, PlanningQuery
+from planning_update.models import Application, ApplicationRef, PlanningQuery
 from planning_update.services.scraper import (
     collect_result_applications,
     enrich_application,
     fetch_latest_applications,
     fetch_latest_applications_cached,
     filter_applications_by_keywords,
+    filter_applications_by_major,
+    filter_applications_by_major_refs,
     load_cached_applications,
     save_cached_applications,
 )
@@ -48,6 +50,78 @@ def test_cached_applications_round_trip(
     save_cached_applications(query, applications, cache_dir=tmp_path)
 
     assert load_cached_applications(query, cache_dir=tmp_path) == applications
+
+
+def test_filter_applications_by_major_refs_keeps_matching_refs(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Major filtering should keep only applications on the major list."""
+    applications = [
+        application_factory(application_ref={"value": "26/00281/FUL"}),
+        application_factory(application_ref={"value": "26/00282/FUL"}),
+    ]
+
+    filtered = filter_applications_by_major_refs(
+        applications,
+        major_refs={"26/00282/FUL"},
+    )
+
+    assert [application.application_ref.value for application in filtered] == [
+        "26/00282/FUL"
+    ]
+    assert filtered[0].is_major_application is True
+
+
+def test_filter_applications_by_major_returns_original_list_when_disabled(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Major filtering should be a no-op when the query does not enable it.
+
+    This includes not hitting the major applications page at all
+    """
+    applications = [application_factory()]
+
+    def fail_fetch_major_applications_page(session: requests.Session) -> str:
+        raise AssertionError("fetch_major_applications_page should not be called")
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_major_applications_page",
+        fail_fetch_major_applications_page,
+    )
+
+    filtered = filter_applications_by_major(
+        requests.Session(),
+        applications,
+        query=PlanningQuery(),
+    )
+
+    assert filtered == applications
+
+
+def test_fetch_latest_applications_does_not_hit_major_page_when_disabled(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Non-major runs should not request the Oxford major-applications page."""
+    monkeypatch.setattr(
+        "planning_update.services.scraper.collect_result_applications",
+        lambda session, *, query: [application_factory()],
+    )
+
+    def fail_fetch_major_applications_page(session: requests.Session) -> str:
+        raise AssertionError("fetch_major_applications_page should not be called")
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_major_applications_page",
+        fail_fetch_major_applications_page,
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.enrich_application",
+        lambda session, application, *, query: application,
+    )
+
+    applications = fetch_latest_applications(PlanningQuery())
+
+    assert len(applications) == 1
 
 
 def test_fetch_latest_applications_cached_reuses_saved_results(
@@ -115,6 +189,53 @@ def test_fetch_latest_applications_only_enriches_keyword_matches(
     ]
     assert applications[0].keyword_matches == ["ashp", "pv"]
     assert seen_refs == ["26/00281/FUL"]
+
+
+def test_fetch_latest_applications_only_enriches_major_matches(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Major searches should enrich only the applications on the major list."""
+    seen_refs: list[str] = []
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.collect_result_applications",
+        lambda session, *, query: [
+            application_factory(
+                application_ref={"value": "26/00281/FUL"},
+                proposal="Install ASHP and rooftop PV",
+            ),
+            application_factory(
+                application_ref={"value": "26/00282/FUL"},
+                proposal="Rear extension",
+            ),
+        ],
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_major_applications_page",
+        lambda session: "<html></html>",
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_major_application_refs",
+        lambda html: [ApplicationRef(value="26/00282/FUL")],
+    )
+
+    def fake_enrich_application(
+        session: requests.Session, application: Application, *, query: PlanningQuery
+    ) -> Application:
+        seen_refs.append(application.application_ref.value)
+        return application
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.enrich_application", fake_enrich_application
+    )
+
+    applications = fetch_latest_applications(PlanningQuery(major=True))
+
+    assert [application.application_ref.value for application in applications] == [
+        "26/00282/FUL"
+    ]
+    assert applications[0].is_major_application is True
+    assert seen_refs == ["26/00282/FUL"]
 
 
 def test_enrich_application_skips_summary_page_for_validated_queries(

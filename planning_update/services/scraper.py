@@ -10,6 +10,7 @@ from ..parsing.parser import (
     extract_applications,
     extract_further_information,
     extract_important_dates,
+    extract_major_application_refs,
     extract_pagination_urls,
     extract_summary_fields,
 )
@@ -18,6 +19,7 @@ from .oxford_planning_client import (
     build_dates_tab_url,
     build_further_information_tab_url,
     fetch_form,
+    fetch_major_applications_page,
     fetch_page,
     fetch_results_page,
 )
@@ -95,6 +97,49 @@ def filter_applications_by_keywords(
     return matched_applications
 
 
+def filter_applications_by_major_refs(
+    applications: list[Application],
+    *,
+    major_refs: set[str],
+) -> list[Application]:
+    """Filter result-card applications to those on the current major list."""
+    matched_applications: list[Application] = []
+    for application in applications:
+        if application.application_ref.value not in major_refs:
+            continue
+        matched_applications.append(
+            Application.model_validate(
+                application.model_dump() | {"is_major_application": True}
+            )
+        )
+    return matched_applications
+
+
+def filter_applications_by_major(
+    session: requests.Session,
+    applications: list[Application],
+    *,
+    query: PlanningQuery,
+) -> list[Application]:
+    """Filter applications to current Oxford major applications when configured.
+
+    This wrapper exists to keep `fetch_latest_applications` compact and readable
+    """
+    if not query.uses_major_matching():
+        return applications
+
+    major_application_refs = {
+        application_ref.value
+        for application_ref in extract_major_application_refs(
+            fetch_major_applications_page(session)
+        )
+    }
+    return filter_applications_by_major_refs(
+        applications,
+        major_refs=major_application_refs,
+    )
+
+
 def collect_result_applications(
     session: requests.Session, *, query: PlanningQuery
 ) -> list[Application]:
@@ -130,6 +175,7 @@ def fetch_latest_applications(query: PlanningQuery) -> list[Application]:
     # matching happens before we hit individual application pages for enrichment.
     applications = collect_result_applications(session, query=query)
     applications = filter_applications_by_keywords(applications, query=query)
+    applications = filter_applications_by_major(session, applications, query=query)
     return [
         enrich_application(session, application, query=query)
         for application in applications

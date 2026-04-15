@@ -12,6 +12,9 @@ WEEKLY_LIST_URL = (
     "https://public.oxford.gov.uk/online-applications/search.do?action=weeklyList"
 )
 RESULTS_URL = "https://public.oxford.gov.uk/online-applications/weeklyListResults.do?action=firstPage"
+MAJOR_APPLICATIONS_URL = (
+    "https://www.oxford.gov.uk/planning-applications/current-planning-applications"
+)
 DEFAULT_TIMEOUT_SECONDS = 30
 SCRAPER_CACHE_DIR = Path(".cache/planning-update")
 

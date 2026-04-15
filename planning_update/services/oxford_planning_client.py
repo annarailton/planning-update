@@ -26,26 +26,20 @@ def should_retry_response(response: requests.Response) -> bool:
     return response.status_code in RETRY_STATUS_CODES
 
 
-def log_backoff(details: dict[str, object]) -> None:
-    """Emit a concise retry log line for backoff retries."""
-    kwargs = details.get("kwargs", {})
-    method = kwargs.get("method", "REQUEST") if isinstance(kwargs, dict) else "REQUEST"
-    url = kwargs.get("url", "") if isinstance(kwargs, dict) else ""
-    value = details.get("value")
-    if isinstance(value, requests.Response):
-        outcome = f"status {value.status_code}"
-    else:
-        exc = details.get("exception")
-        outcome = exc.__class__.__name__ if exc is not None else "retry"
+def summarize_response(
+    response: requests.Response, *, snippet_length: int = 200
+) -> str:
+    """Return a compact diagnostic summary for an HTTP response.
 
-    logger.warning(
-        "%s %s hit %s, retrying in %.2fs (attempt %s/%s)",
-        method,
-        url,
-        outcome,
-        float(details["wait"]),
-        int(details["tries"]),
-        RETRY_MAX_RETRIES + 1,
+    This is mainly to make diagnosing problems in CI easier.
+    """
+    content_type = response.headers.get("Content-Type", "unknown")
+    snippet = " ".join(response.text.split())[:snippet_length]
+    if len(snippet) == snippet_length:
+        snippet = f"{snippet}..."
+    return (
+        f"status={response.status_code}, url={response.url}, "
+        f"content_type={content_type}, body_snippet={snippet!r}"
     )
 
 
@@ -57,6 +51,25 @@ def request_with_backoff(
     **kwargs,
 ) -> requests.Response:
     """Send a request with lightweight exponential backoff for transient failures."""
+
+    def log_backoff(details: dict[str, object]) -> None:
+        """Emit a concise retry log line for backoff retries."""
+        value = details.get("value")
+        if isinstance(value, requests.Response):
+            outcome = f"status {value.status_code}"
+        else:
+            exc = details.get("exception")
+            outcome = exc.__class__.__name__ if exc is not None else "retry"
+
+        logger.warning(
+            "%s %s hit %s, retrying in %.2fs (attempt %s/%s)",
+            method,
+            url,
+            outcome,
+            float(details["wait"]),
+            int(details["tries"]),
+            RETRY_MAX_RETRIES + 1,
+        )
 
     @backoff.on_exception(
         backoff.expo,
@@ -96,7 +109,13 @@ def fetch_form(session: requests.Session) -> tuple[str, list[str]]:
         url=WEEKLY_LIST_URL,
         timeout=DEFAULT_TIMEOUT_SECONDS,
     )
-    return extract_form_values(response.text)
+    logger.info("Fetched weekly list form: %s", summarize_response(response))
+    try:
+        return extract_form_values(response.text)
+    except RuntimeError as exc:
+        raise RuntimeError(
+            f"{exc} Response details: {summarize_response(response)}"
+        ) from exc
 
 
 def fetch_results_page(

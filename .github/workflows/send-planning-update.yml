@@ -25,6 +25,17 @@ jobs:
       - name: Sync dependencies
         run: uv sync
 
+      - name: Oxford connectivity diagnostics
+        run: |
+          set -x
+          echo "Runner public IP:"
+          curl -s https://api.ipify.org || true
+          echo
+          echo "DNS lookup:"
+          getent hosts public.oxford.gov.uk || true
+          echo "HTTPS HEAD request:"
+          curl -I -v --connect-timeout 10 --max-time 20 "https://public.oxford.gov.uk/online-applications/search.do?action=weeklyList" || true
+
       - name: Send planning update
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}

@@ -16,6 +16,11 @@ MAJOR_APPLICATIONS_URL = (
     "https://www.oxford.gov.uk/planning-applications/current-planning-applications"
 )
 DEFAULT_TIMEOUT_SECONDS = 30
+RETRY_MAX_RETRIES = 3
+RETRY_INITIAL_BACKOFF_SECONDS = 0.5
+RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
+
+# Cache
 SCRAPER_CACHE_DIR = Path(".cache/planning-update")
 
 # Email stuff

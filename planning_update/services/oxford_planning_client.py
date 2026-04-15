@@ -49,6 +49,23 @@ def log_backoff(details: dict[str, object]) -> None:
     )
 
 
+def summarize_response(
+    response: requests.Response, *, snippet_length: int = 200
+) -> str:
+    """Return a compact diagnostic summary for an HTTP response.
+
+    This is mainly to make diagnosing problems in CI easier.
+    """
+    content_type = response.headers.get("Content-Type", "unknown")
+    snippet = " ".join(response.text.split())[:snippet_length]
+    if len(snippet) == snippet_length:
+        snippet = f"{snippet}..."
+    return (
+        f"status={response.status_code}, url={response.url}, "
+        f"content_type={content_type}, body_snippet={snippet!r}"
+    )
+
+
 def request_with_backoff(
     session: requests.Session,
     *,
@@ -96,7 +113,13 @@ def fetch_form(session: requests.Session) -> tuple[str, list[str]]:
         url=WEEKLY_LIST_URL,
         timeout=DEFAULT_TIMEOUT_SECONDS,
     )
-    return extract_form_values(response.text)
+    logger.info("Fetched weekly list form: %s", summarize_response(response))
+    try:
+        return extract_form_values(response.text)
+    except RuntimeError as exc:
+        raise RuntimeError(
+            f"{exc} Response details: {summarize_response(response)}"
+        ) from exc
 
 
 def fetch_results_page(

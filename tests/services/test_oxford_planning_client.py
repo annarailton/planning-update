@@ -3,7 +3,11 @@
 import backoff
 import requests
 
-from planning_update.services.oxford_planning_client import request_with_backoff
+from planning_update.services.oxford_planning_client import (
+    fetch_form,
+    request_with_backoff,
+    summarize_response,
+)
 
 
 class DummyResponse:
@@ -135,3 +139,46 @@ def test_request_with_backoff_raises_after_exhausting_retries(monkeypatch) -> No
 
     assert len(session.calls) == 4
     assert sleep_calls == [0.5, 1.0, 2.0]
+
+
+def test_summarize_response_includes_status_url_and_snippet() -> None:
+    """Response summaries should include the key diagnostics fields."""
+    response = DummyResponse(
+        status_code=403,
+        url="https://example.com/blocked",
+        text="<html><title>Access denied</title><body>Forbidden</body></html>",
+        headers={"Content-Type": "text/html"},
+    )
+
+    summary = summarize_response(response)
+
+    assert "status=403" in summary
+    assert "url=https://example.com/blocked" in summary
+    assert "content_type=text/html" in summary
+    assert "Access denied" in summary
+
+
+def test_fetch_form_raises_with_response_details_when_page_is_unexpected(
+    monkeypatch,
+) -> None:
+    """Form parsing failures should include a compact response diagnostic."""
+    monkeypatch.setattr(
+        "planning_update.services.oxford_planning_client.request_with_backoff",
+        lambda session, *, method, url, **kwargs: DummyResponse(
+            status_code=200,
+            url=url,
+            text="<html><title>Blocked</title><body>Access denied</body></html>",
+            headers={"Content-Type": "text/html"},
+        ),
+    )
+
+    try:
+        fetch_form(DummySession([]))
+    except RuntimeError as exc:
+        message = str(exc)
+        assert "Could not find CSRF token on weekly list page." in message
+        assert "Response details:" in message
+        assert "status=200" in message
+        assert "Access denied" in message
+    else:
+        raise AssertionError("Expected RuntimeError")

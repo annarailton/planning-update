@@ -28,7 +28,7 @@ SCRAPER_CACHE_DIR = Path(".cache/planning-update")
 
 # Email stuff
 RESEND_EMAILS_URL = "https://api.resend.com/emails"
-DEFAULT_SENDER_ADDRESS = "anna@updates.railton.dev"
+DEFAULT_SENDER_ADDRESS = "planning@updates.railton.dev"
 
 # Colours for the HTML output, based on the Tailwind CSS palette with some custom additions.
 PAGE_BACKGROUND_COLOR = "#f5f1e8"

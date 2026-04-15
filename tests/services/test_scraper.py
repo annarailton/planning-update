@@ -162,8 +162,8 @@ def test_fetch_applications_for_query_with_week_resolves_live_week_in_debug_mode
     cached_applications = [application_factory()]
 
     monkeypatch.setattr(
-        "planning_update.services.scraper.fetch_form",
-        lambda session: ("csrf-123", ["13 Apr 2026", "06 Apr 2026"]),
+        "planning_update.services.scraper.resolve_actual_week",
+        lambda query: "13 Apr 2026",
     )
     monkeypatch.setattr(
         "planning_update.services.scraper.load_cached_applications",

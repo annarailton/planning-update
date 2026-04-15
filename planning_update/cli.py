@@ -8,6 +8,7 @@ from typing import Annotated
 
 import requests
 import typer
+from dotenv import load_dotenv
 from pydantic import ValidationError
 
 from .config import load_cli_config, resolve_cli_options
@@ -32,6 +33,18 @@ def build_default_output_path(*, generated_at: datetime) -> Path:
     """Build the default output filename with an ISO-like timestamp slug."""
     timestamp_slug = generated_at.strftime("%Y-%m-%dT%H-%M-%S")
     return Path(f"{timestamp_slug}_planning_applications.html")
+
+
+def resolve_resend_api_key(*, needs_email: bool) -> str | None:
+    """Load and return the Resend API key when email sending is requested."""
+    if not needs_email:
+        return None
+
+    load_dotenv()
+    resend_api_key = os.environ.get("RESEND_API_KEY")
+    if not resend_api_key:
+        raise typer.BadParameter("RESEND_API_KEY must be set when using --email-to.")
+    return resend_api_key
 
 
 @app.callback()
@@ -122,6 +135,15 @@ def run(
         typer.secho(f"Error: {exc}", err=True, fg=typer.colors.RED)
         raise typer.Exit(code=1) from exc
 
+    # Fail fast if we don't have an email API key when email sending is requested
+    try:
+        resend_api_key = resolve_resend_api_key(
+            needs_email=options.email_recipient is not None and not options.debug
+        )
+    except typer.BadParameter as exc:
+        typer.secho(f"Error: {exc}", err=True, fg=typer.colors.RED)
+        raise typer.Exit(code=1) from exc
+
     try:
         report = build_planning_report(options=options)
     except (ValueError, ValidationError) as exc:
@@ -160,12 +182,6 @@ def run(
             generated_at=generated_at,
             search_criteria=search_criteria,
         )
-
-        resend_api_key = os.environ.get("RESEND_API_KEY")
-        if not resend_api_key:
-            raise typer.BadParameter(
-                "RESEND_API_KEY must be set when using --email-to."
-            )
 
         email_id = send_resend_email(
             api_key=resend_api_key,

@@ -1,6 +1,7 @@
 """Tests for the Typer CLI entry point."""
 
 from collections.abc import Callable
+import os
 from pathlib import Path
 
 from typer.testing import CliRunner
@@ -353,6 +354,75 @@ def test_cli_sends_email_via_resend(
     assert "Oxford planning applications" in sent_payload["subject"]
     assert "<!DOCTYPE html>" in sent_payload["html"]
     assert "Oxford Planning Applications" in sent_payload["text"]
+
+
+def test_cli_email_fails_before_scraping_when_resend_key_missing(
+    monkeypatch,
+) -> None:
+    """CLI should fail before building the report if email is requested without a key."""
+
+    def fail_build_planning_report(*, options) -> PlanningReport:
+        raise AssertionError("build_planning_report should not be called")
+
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.setattr(main, "build_planning_report", fail_build_planning_report)
+    monkeypatch.setattr(main, "load_dotenv", lambda: None)
+
+    result = runner.invoke(
+        main.app,
+        ["--email-to", "test@example.com"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 1
+    assert "RESEND_API_KEY must be set when using --email-to." in result.stderr
+
+
+def test_cli_email_loads_resend_key_from_dotenv(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """CLI should load a Resend API key from .env before sending email."""
+
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        return build_report_from_applications(
+            [application_factory()], status_mode="both"
+        )
+
+    sent_payload: dict[str, str] = {}
+
+    def fake_send_resend_email(
+        *,
+        api_key: str,
+        recipient: str,
+        subject: str,
+        html: str,
+        text: str,
+        sender: str = "anna@railton.dev",
+    ) -> str:
+        sent_payload["api_key"] = api_key
+        sent_payload["recipient"] = recipient
+        return "email_dotenv"
+
+    def fake_load_dotenv() -> None:
+        os.environ["RESEND_API_KEY"] = "re_dotenv_key"
+
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
+    monkeypatch.setattr(main, "send_resend_email", fake_send_resend_email)
+    monkeypatch.setattr(main, "load_dotenv", fake_load_dotenv)
+
+    result = runner.invoke(
+        main.app,
+        ["--email-to", "test@example.com"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert "Sent email to test@example.com via Resend (email_dotenv)." in result.stdout
+    assert sent_payload == {
+        "api_key": "re_dotenv_key",
+        "recipient": "test@example.com",
+    }
 
 
 def test_cli_debug_mode_skips_email_and_writes_file(

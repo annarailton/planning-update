@@ -467,16 +467,20 @@ def test_cli_uses_explicit_config_file(
                 'parish = "Littlemore"',
                 "debug = true",
                 'status_mode = "decided"',
+                "major = true",
             ]
         ),
         encoding="utf-8",
     )
 
     def fake_build_planning_report(*, options) -> PlanningReport:
-        query = options.queries[0]
-        assert query.ward_name == "churchill"
-        assert query.parish_name == "Littlemore"
-        assert query.status_mode == "decided"
+        assert len(options.queries) == 2
+        location_query, major_query = options.queries
+        assert location_query.ward_name == "churchill"
+        assert location_query.parish_name == "Littlemore"
+        assert location_query.status_mode == "decided"
+        assert major_query.major is True
+        assert major_query.status_mode == "decided"
         return build_report_from_applications(
             [application_factory()],
             status_mode="decided",

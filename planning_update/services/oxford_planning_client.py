@@ -5,7 +5,12 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 import requests
 
-from ..constants import DEFAULT_TIMEOUT_SECONDS, RESULTS_URL, WEEKLY_LIST_URL
+from ..constants import (
+    DEFAULT_TIMEOUT_SECONDS,
+    MAJOR_APPLICATIONS_URL,
+    RESULTS_URL,
+    WEEKLY_LIST_URL,
+)
 from ..models import PlanningQuery
 from ..parsing.parser import extract_form_values
 
@@ -44,6 +49,13 @@ def fetch_page(session: requests.Session, page_url: str) -> tuple[str, str]:
     response = session.get(page_url, timeout=DEFAULT_TIMEOUT_SECONDS)
     response.raise_for_status()
     return response.text, response.url
+
+
+def fetch_major_applications_page(session: requests.Session) -> str:
+    """Fetch the Oxford City Council page listing current major applications."""
+    response = session.get(MAJOR_APPLICATIONS_URL, timeout=DEFAULT_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.text
 
 
 def build_dates_tab_url(application_url: str) -> str:

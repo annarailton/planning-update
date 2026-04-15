@@ -62,14 +62,17 @@ def build_planning_report(*, options: ResolvedCliOptions) -> PlanningReport:
         "validated": False,
         "decided": False,
     }
+    actual_week: str | None = None
 
     for query in options.queries:
         if query.uses_major_matching():
             major_requested_by_status[query.status_mode] = True
-        section_applications = fetch_applications_for_query(
+        section_applications, selected_week = fetch_applications_for_query(
             query=query,
             debug=options.debug,
         )
+        if actual_week is None and selected_week is not None:
+            actual_week = selected_week
         applications_by_status[query.status_mode] = merge_applications(
             applications_by_status[query.status_mode],
             section_applications,
@@ -102,4 +105,8 @@ def build_planning_report(*, options: ResolvedCliOptions) -> PlanningReport:
     applications = (
         applications_by_status["validated"] + applications_by_status["decided"]
     )
-    return PlanningReport(applications=applications, sections=sections)
+    return PlanningReport(
+        applications=applications,
+        sections=sections,
+        actual_week=actual_week,
+    )

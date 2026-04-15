@@ -22,11 +22,15 @@ def test_build_planning_report_builds_sections_for_both_statuses(
 
     def fake_fetch_applications_for_query(
         *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
+    ) -> tuple[list[Application], str | None]:
         seen_queries.append((query.status_mode, debug))
         if query.status_mode == "validated":
-            return [application_factory(application_ref={"value": "26/00281/FUL"})]
-        return [application_factory(application_ref={"value": "26/00282/FUL"})]
+            return [
+                application_factory(application_ref={"value": "26/00281/FUL"})
+            ], "07 Apr 2026"
+        return [
+            application_factory(application_ref={"value": "26/00282/FUL"})
+        ], "07 Apr 2026"
 
     monkeypatch.setattr(
         "planning_update.services.report_service.fetch_applications_for_query",
@@ -55,6 +59,7 @@ def test_build_planning_report_builds_sections_for_both_statuses(
         "26/00281/FUL",
         "26/00282/FUL",
     ]
+    assert report.actual_week == "07 Apr 2026"
 
 
 def test_build_planning_report_marks_unsearched_section(
@@ -64,8 +69,8 @@ def test_build_planning_report_marks_unsearched_section(
 
     def fake_fetch_applications_for_query(
         *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
-        return [application_factory()]
+    ) -> tuple[list[Application], str | None]:
+        return [application_factory()], "07 Apr 2026"
 
     monkeypatch.setattr(
         "planning_update.services.report_service.fetch_applications_for_query",
@@ -91,10 +96,10 @@ def test_build_planning_report_flags_when_no_major_validated_applications_exist(
 
     def fake_fetch_applications_for_query(
         *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
+    ) -> tuple[list[Application], str | None]:
         if query.major:
-            return []
-        return [application_factory()]
+            return [], "07 Apr 2026"
+        return [application_factory()], "07 Apr 2026"
 
     monkeypatch.setattr(
         "planning_update.services.report_service.fetch_applications_for_query",
@@ -125,10 +130,10 @@ def test_build_planning_report_does_not_flag_missing_major_decided_applications(
 
     def fake_fetch_applications_for_query(
         *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
+    ) -> tuple[list[Application], str | None]:
         if query.major:
-            return []
-        return [application_factory()]
+            return [], "07 Apr 2026"
+        return [application_factory()], "07 Apr 2026"
 
     monkeypatch.setattr(
         "planning_update.services.report_service.fetch_applications_for_query",
@@ -157,10 +162,10 @@ def test_build_planning_report_does_not_flag_when_major_application_exists(
 
     def fake_fetch_applications_for_query(
         *, query: PlanningQuery, debug: bool
-    ) -> list[Application]:
+    ) -> tuple[list[Application], str | None]:
         if query.major:
-            return [application_factory(is_major_application=True)]
-        return [application_factory()]
+            return [application_factory(is_major_application=True)], "07 Apr 2026"
+        return [application_factory()], "07 Apr 2026"
 
     monkeypatch.setattr(
         "planning_update.services.report_service.fetch_applications_for_query",

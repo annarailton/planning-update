@@ -67,7 +67,7 @@ def test_request_with_backoff_retries_rate_limit_then_succeeds(monkeypatch) -> N
 
     assert response.status_code == 200
     assert len(session.calls) == 2
-    assert sleep_calls == [0.5]
+    assert sleep_calls == [2.0]
 
 
 def test_request_with_backoff_retries_connection_errors_then_succeeds(
@@ -90,7 +90,7 @@ def test_request_with_backoff_retries_connection_errors_then_succeeds(
 
     assert response.status_code == 200
     assert len(session.calls) == 2
-    assert sleep_calls == [0.5]
+    assert sleep_calls == [2.0]
 
 
 def test_request_with_backoff_does_not_retry_non_retriable_http_error(
@@ -118,7 +118,7 @@ def test_request_with_backoff_does_not_retry_non_retriable_http_error(
 
 def test_request_with_backoff_raises_after_exhausting_retries(monkeypatch) -> None:
     """Retriable failures should still raise once retries are exhausted."""
-    session = DummySession([DummyResponse(status_code=503) for _ in range(4)])
+    session = DummySession([DummyResponse(status_code=503) for _ in range(5)])
     sleep_calls = patch_backoff_sleep(monkeypatch)
 
     try:
@@ -133,5 +133,5 @@ def test_request_with_backoff_raises_after_exhausting_retries(monkeypatch) -> No
     else:
         raise AssertionError("Expected HTTPError")
 
-    assert len(session.calls) == 4
-    assert sleep_calls == [0.5, 1.0, 2.0]
+    assert len(session.calls) == 5
+    assert sleep_calls == [2.0, 4.0, 8.0, 16.0]

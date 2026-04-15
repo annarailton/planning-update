@@ -28,6 +28,11 @@ from planning_update.renderers import html_render
             ".field-value--decision-approved{color:var(--color-success);",
         ),
         (
+            "Raise no objection",
+            "field-value--decision-approved",
+            ".field-value--decision-approved{color:var(--color-success);",
+        ),
+        (
             "Rejected",
             "field-value--decision-rejected",
             ".field-value--decision-rejected{color:var(--color-danger);",
@@ -153,6 +158,36 @@ def test_render_application_html_colours_past_decision_dates_green(
         '<td class="field-value field-value--decision-date-past" valign="top">2026-04-09</td>'
         in html
     )
+
+
+def test_render_application_html_uses_larger_ref_and_smaller_proposal_title(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Cards should emphasize the application reference over the proposal title."""
+    html = html_render.render_application_html(
+        [application_factory(decision="Approved")]
+    )
+
+    assert ".eyebrow{font-size:18px" in html
+    assert ".card-title{margin:0 0 8px;font-size:20px" in html
+
+
+def test_render_application_html_shows_address_inline_with_application_ref(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Cards should show the address on the same line as the application ref."""
+    application = application_factory(
+        application_ref={"value": "26/00737/VAR"},
+        address="169 Windmill Road Oxford Oxfordshire OX3 7DW",
+    )
+
+    html = html_render.render_application_html([application])
+
+    assert (
+        '<div class="eyebrow">26/00737/VAR <span class="eyebrow-separator">-</span> '
+        '<span class="eyebrow-address">169 Windmill Road Oxford Oxfordshire OX3 7DW</span></div>'
+    ) in html
+    assert '<p class="address">' not in html
 
 
 def test_build_search_criteria_includes_keywords_and_major_from_all_queries() -> None:

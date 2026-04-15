@@ -66,7 +66,11 @@ def date_css_class(value: date | None, *, today: date) -> str:
 
 def decision_css_class(decision: str | None) -> str:
     """Return a modifier CSS class for known decision values."""
-    if decision in {"Approved", "Prior approval not required"}:
+    if decision in {
+        "Approved",
+        "Prior approval not required",
+        "Raise no objection",
+    }:
         return " field-value--decision-approved"
     if decision in {"Rejected", "Application Withdrawn"}:
         return " field-value--decision-rejected"
@@ -251,9 +255,9 @@ def render_application_html(
                 (
                     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="card">'
                     "<tr><td>"
-                    f'<div class="eyebrow">{escape(application.application_ref.value)}</div>'
+                    f'<div class="eyebrow">{escape(application.application_ref.value)}'
+                    f' <span class="eyebrow-separator">-</span> <span class="eyebrow-address">{escape(application.address)}</span></div>'
                     f'<h2 class="card-title">{escape(application.proposal)}</h2>'
-                    f'<p class="address">{escape(application.address)}</p>'
                     f'<p class="link-row"><a href="{escape(application.url, quote=True)}">View application</a></p>'
                     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="fields">'
                     f"{render_fields_table(fields)}"
@@ -339,10 +343,12 @@ def render_application_html(
         ".card td{padding:14px;}"
         ".card--empty td{padding:18px 14px;}"
         ".empty-state{margin:0;font-size:16px;font-weight:700;color:var(--color-text-secondary);}"
-        ".eyebrow{font-size:12px;font-weight:700;letter-spacing:0.08em;"
-        "text-transform:uppercase;color:var(--color-accent-warm);margin-bottom:10px;}"
-        ".card-title{margin:0 0 8px;font-size:24px;line-height:1.2;}"
-        ".address{margin:0 0 8px;color:var(--color-text-secondary);}"
+        ".eyebrow{font-size:18px;font-weight:700;letter-spacing:0.04em;"
+        "text-transform:uppercase;color:var(--color-accent-warm);margin-bottom:8px;}"
+        ".eyebrow-separator{color:var(--color-text-tertiary);font-weight:400;}"
+        ".eyebrow-address{color:var(--color-text-secondary);font-size:15px;font-weight:400;"
+        "letter-spacing:0;text-transform:none;}"
+        ".card-title{margin:0 0 8px;font-size:20px;line-height:1.25;}"
         ".link-row{margin:0 0 8px;}"
         ".link-row a{display:inline-block;font-size:15px;font-weight:700;padding-left:2px;}"
         ".fields{width:100%;}"

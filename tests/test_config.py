@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from planning_update.config import load_cli_config, parse_keywords, resolve_cli_options
+from planning_update.config import (
+    load_cli_config,
+    parse_keywords,
+    parse_wards,
+    resolve_cli_options,
+)
 from planning_update.models import CliConfig, CliInputs, PlanningQuery
 
 
@@ -59,6 +64,19 @@ def test_load_cli_config_reads_cli_section(tmp_path: Path) -> None:
     assert config.status_mode == "validated"
 
 
+def test_load_cli_config_reads_ward_lists(tmp_path: Path) -> None:
+    """Config loader should accept TOML ward lists."""
+    config_path = tmp_path / "planning_update.toml"
+    config_path.write_text(
+        'ward = ["churchill", "hinksey park"]',
+        encoding="utf-8",
+    )
+
+    config = load_cli_config(path=config_path)
+
+    assert config.ward == ["churchill", "hinksey park"]
+
+
 def test_parse_keywords_normalizes_and_deduplicates_strings() -> None:
     """Keyword parsing should trim, lowercase, and deduplicate values."""
     assert parse_keywords(" photovoltaics , PV, ashp, pv, , ASHP ") == [
@@ -81,10 +99,28 @@ def test_parse_keywords_returns_empty_list_for_none() -> None:
     assert parse_keywords(None) == []
 
 
+def test_parse_wards_accepts_strings_and_lists() -> None:
+    """Ward parsing should trim and deduplicate string or list input."""
+    assert parse_wards(" Churchill , Hinksey Park, churchill ") == [
+        "Churchill",
+        "Hinksey Park",
+    ]
+    assert parse_wards(["Churchill", " Hinksey Park ", "churchill"]) == [
+        "Churchill",
+        "Hinksey Park",
+    ]
+
+
 def test_parse_keywords_rejects_invalid_types() -> None:
     """Keyword parsing should reject unsupported input types."""
     with pytest.raises(TypeError, match="keywords must be provided"):
         parse_keywords(123)
+
+
+def test_parse_wards_rejects_invalid_types() -> None:
+    """Ward parsing should reject unsupported input types."""
+    with pytest.raises(TypeError, match="ward must be provided"):
+        parse_wards(123)
 
 
 def test_resolve_cli_options_defaults_keyword_queries_to_both_statuses() -> None:
@@ -130,6 +166,37 @@ def test_resolve_cli_options_builds_keyword_and_ward_queries_for_both_statuses()
         ),
         PlanningQuery(
             keywords=["photovoltaics", "heat pump", "ashp", "pv", "solar panels"],
+            status_mode="decided",
+        ),
+    ]
+
+
+def test_resolve_cli_options_expands_multiple_wards_from_cli() -> None:
+    """Multiple wards should expand into separate location-filtered queries."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(
+            ward=["Hinksey Park", "Churchill"],
+            status="both",
+        ),
+        cli_config=CliConfig(),
+    )
+
+    assert options.status_mode == "both"
+    assert options.queries == [
+        PlanningQuery(
+            ward_name="Hinksey Park",
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            ward_name="Churchill",
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            ward_name="Hinksey Park",
+            status_mode="decided",
+        ),
+        PlanningQuery(
+            ward_name="Churchill",
             status_mode="decided",
         ),
     ]
@@ -229,5 +296,24 @@ def test_resolve_cli_options_applies_explicit_status_to_keyword_queries() -> Non
         PlanningQuery(
             keywords=["photovoltaics", "heat pump"],
             status_mode="decided",
+        ),
+    ]
+
+
+def test_resolve_cli_options_expands_multiple_wards_from_config() -> None:
+    """Config ward lists should expand into separate location-filtered queries."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(status="validated"),
+        cli_config=CliConfig(ward=["Hinksey Park", "Churchill"]),
+    )
+
+    assert options.queries == [
+        PlanningQuery(
+            ward_name="Hinksey Park",
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            ward_name="Churchill",
+            status_mode="validated",
         ),
     ]

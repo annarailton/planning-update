@@ -5,8 +5,8 @@ from datetime import date, datetime
 
 import pytest
 
-from planning_update.renderers import html_render
 from planning_update.models import Application, ApplicationSection
+from planning_update.renderers import html_render
 
 
 @pytest.mark.parametrize(
@@ -24,6 +24,11 @@ from planning_update.models import Application, ApplicationSection
         ),
         (
             "Rejected",
+            "field-value--decision-rejected",
+            ".field-value--decision-rejected{color:var(--color-danger);",
+        ),
+        (
+            "Application Withdrawn",
             "field-value--decision-rejected",
             ".field-value--decision-rejected{color:var(--color-danger);",
         ),

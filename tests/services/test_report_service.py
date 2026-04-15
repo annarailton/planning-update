@@ -101,3 +101,16 @@ def test_merge_applications_deduplicates_and_merges_keyword_matches(
     assert len(merged) == 1
     assert merged[0].application_ref.value == "26/00281/FUL"
     assert merged[0].keyword_matches == ["pv", "ashp"]
+
+
+def test_merge_applications_preserves_major_flag_from_any_scope(
+    application_factory: Callable[..., Application]
+) -> None:
+    """Merging should keep the major marker if either query matched it."""
+    existing = [application_factory(is_major_application=True)]
+    new = [application_factory(is_major_application=False)]
+
+    merged = merge_applications(existing, new)
+
+    assert len(merged) == 1
+    assert merged[0].is_major_application is True

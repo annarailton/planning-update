@@ -38,7 +38,12 @@ def merge_applications(
         merged[application_ref] = Application.model_validate(
             current.model_dump()
             | application.model_dump(exclude_none=True)
-            | {"keyword_matches": keyword_matches or None}
+            | {
+                "keyword_matches": keyword_matches or None,
+                "is_major_application": (
+                    current.is_major_application or application.is_major_application
+                ),
+            }
         )
 
     return [merged[application_ref] for application_ref in ordered_refs]

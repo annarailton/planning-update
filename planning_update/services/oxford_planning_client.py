@@ -66,6 +66,8 @@ def request_with_backoff(
         jitter=None,
         on_backoff=log_backoff,
     )
+    # Some responses may have retry-worthy status codes, but we need to
+    # inspect the response before deciding whether to raise for status or retry
     @backoff.on_predicate(
         backoff.expo,
         predicate=should_retry_response,

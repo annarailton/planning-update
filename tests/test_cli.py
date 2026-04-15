@@ -1,7 +1,7 @@
 """Tests for the Typer CLI entry point."""
 
-from collections.abc import Callable
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 from typer.testing import CliRunner

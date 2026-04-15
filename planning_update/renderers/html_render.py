@@ -317,9 +317,8 @@ def render_application_html(
         "h1{margin:0 0 8px;font-size:32px;line-height:1.1;}"
         ".timestamp{margin:16px 0 8px;color:var(--color-text-secondary);font-size:13px;}"
         ".summary{margin:0 0 16px;color:var(--color-text-secondary);}"
-        ".criteria{background:var(--color-surface-primary);border:1px solid var(--color-border-subtle);border-radius:12px;box-shadow:0 4px 12px var(--color-shadow);}"
+        ".criteria{background:var(--color-surface-primary);border:1px solid var(--color-border-subtle);border-radius:12px;box-shadow:0 4px 12px var(--color-shadow);margin-top:12px;}"
         ".criteria-cell{padding:10px 14px;}"
-        ".criteria h2{margin:0 0 8px;font-size:15px;line-height:1.2;}"
         ".criteria-list{width:auto;font-size:13px;line-height:1.4;}"
         ".criteria-item{color:var(--color-text-secondary);}"
         ".criteria-label{font-weight:700;color:var(--color-text-strong);padding:0 6px 6px 0;white-space:nowrap;}"
@@ -362,11 +361,11 @@ def render_application_html(
         '<tr><td class="content-cell">'
         "<h1>Oxford Planning Applications</h1>"
         f'<p class="summary">Found {len(applications)} application{"s" if len(applications) != 1 else ""}.</p>'
+        f"{rendered_sections}"
+        '<h2 class="section-title">Search criteria</h2>'
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="criteria"><tr><td class="criteria-cell">'
-        "<h2>Search criteria</h2>"
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="criteria-list">{criteria_fields}</table>'
         "</td></tr></table>"
-        f"{rendered_sections}"
         f'<p class="timestamp">Generated {format_generated_timestamp(rendered_at)}</p>'
         "</td></tr></table>"
         "</td></tr></table>"

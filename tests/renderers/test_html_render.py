@@ -229,6 +229,7 @@ def test_render_application_html_shows_search_criteria_in_header(
 
     assert "Search criteria" in html
     assert 'class="criteria-list"' in html
+    assert '<h2 class="section-title">Search criteria</h2>' in html
     assert "Generated 2026-04-13 09:30" in html
     assert "Ward:" in html
     assert "Churchill" in html
@@ -238,6 +239,11 @@ def test_render_application_html_shows_search_criteria_in_header(
     assert "photovoltaics, heat pump" in html
     assert "Major applications:" in html
     assert "Yes" in html
+    assert (
+        ".criteria{background:var(--color-surface-primary);border:1px solid var(--color-border-subtle);border-radius:12px;box-shadow:0 4px 12px var(--color-shadow);margin-top:12px;}"
+        in html
+    )
+    assert html.index("View application") < html.index("Search criteria")
 
 
 def test_render_application_html_shows_keyword_matches(

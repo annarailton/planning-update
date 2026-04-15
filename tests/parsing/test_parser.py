@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 
 from planning_update.parsing.parser import (
     extract_further_information,
+    extract_major_application_refs,
     extract_search_result_cards,
     extract_summary_application,
     extract_summary_values,
@@ -102,3 +103,23 @@ def test_extract_summary_values_supports_details_table_without_id() -> None:
     )
 
     assert extract_summary_values(soup) == {"ward": "Churchill Ward"}
+
+
+def test_extract_major_application_refs_reads_refs_from_major_section() -> None:
+    """Major-applications page parsing should return unique application refs."""
+    refs = extract_major_application_refs(
+        """
+        <h2>Major applications</h2>
+        <h3><a href="/app/1">26/00266/FUL</a> - Plots 23-26 Oxford Science Park</h3>
+        <p>First description.</p>
+        <h3><a href="/app/2">25/03242/FUL</a> - 25 Wellington Square</h3>
+        <p>Second description.</p>
+        <h2>Was this webpage helpful?</h2>
+        <h3><a href="/app/3">24/00001/FUL</a> - Ignored later section</h3>
+        """
+    )
+
+    assert [ref.value for ref in refs] == [
+        "26/00266/FUL",
+        "25/03242/FUL",
+    ]

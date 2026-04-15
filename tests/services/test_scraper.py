@@ -312,6 +312,43 @@ def test_enrich_application_skips_summary_page_for_validated_queries(
     ]
 
 
+def test_enrich_application_pauses_between_enrichment_requests(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Validated enrichment should pause before the second detail-page request."""
+    requested_urls: list[str] = []
+    sleep_calls: list[float] = []
+
+    def fake_fetch_page(session: requests.Session, page_url: str) -> tuple[str, str]:
+        requested_urls.append(page_url)
+        return "<html></html>", page_url
+
+    monkeypatch.setattr("planning_update.services.scraper.fetch_page", fake_fetch_page)
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_further_information",
+        lambda html: ("Churchill Ward", None),
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_important_dates",
+        lambda html: ("Mon 16 Mar 2026", "Mon 06 Apr 2026"),
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.time.sleep", sleep_calls.append
+    )
+
+    enrich_application(
+        requests.Session(),
+        application_factory(),
+        query=PlanningQuery(status_mode="validated"),
+    )
+
+    assert requested_urls == [
+        "https://example.com/app?activeTab=details",
+        "https://example.com/app?activeTab=dates",
+    ]
+    assert sleep_calls == [0.5]
+
+
 def test_enrich_application_skips_dates_page_for_decided_queries(
     application_factory: Callable[..., Application], monkeypatch
 ) -> None:

@@ -53,6 +53,11 @@ def patch_backoff_sleep(monkeypatch) -> list[float]:
     return sleep_calls
 
 
+def patch_backoff_jitter(monkeypatch) -> None:
+    """Patch jitter to keep retry waits deterministic in tests."""
+    monkeypatch.setattr(backoff, "full_jitter", lambda value: value / 2)
+
+
 def test_request_with_backoff_retries_rate_limit_then_succeeds(monkeypatch) -> None:
     """429 responses should be retried with exponential backoff."""
     session = DummySession(
@@ -61,6 +66,7 @@ def test_request_with_backoff_retries_rate_limit_then_succeeds(monkeypatch) -> N
             DummyResponse(status_code=200, text="ok"),
         ]
     )
+    patch_backoff_jitter(monkeypatch)
     sleep_calls = patch_backoff_sleep(monkeypatch)
 
     response = request_with_backoff(
@@ -71,7 +77,7 @@ def test_request_with_backoff_retries_rate_limit_then_succeeds(monkeypatch) -> N
 
     assert response.status_code == 200
     assert len(session.calls) == 2
-    assert sleep_calls == [0.5]
+    assert sleep_calls == [2.0]
 
 
 def test_request_with_backoff_retries_connection_errors_then_succeeds(
@@ -84,6 +90,7 @@ def test_request_with_backoff_retries_connection_errors_then_succeeds(
             DummyResponse(status_code=200, text="ok"),
         ]
     )
+    patch_backoff_jitter(monkeypatch)
     sleep_calls = patch_backoff_sleep(monkeypatch)
 
     response = request_with_backoff(
@@ -94,7 +101,31 @@ def test_request_with_backoff_retries_connection_errors_then_succeeds(
 
     assert response.status_code == 200
     assert len(session.calls) == 2
-    assert sleep_calls == [0.5]
+    assert sleep_calls == [1.0]
+
+
+def test_request_with_backoff_retries_5xx_with_shorter_backoff_than_429(
+    monkeypatch,
+) -> None:
+    """Transient 5xx responses should use the non-rate-limit retry policy."""
+    session = DummySession(
+        [
+            DummyResponse(status_code=503),
+            DummyResponse(status_code=200, text="ok"),
+        ]
+    )
+    patch_backoff_jitter(monkeypatch)
+    sleep_calls = patch_backoff_sleep(monkeypatch)
+
+    response = request_with_backoff(
+        session,
+        method="GET",
+        url="https://example.com",
+    )
+
+    assert response.status_code == 200
+    assert len(session.calls) == 2
+    assert sleep_calls == [1.0]
 
 
 def test_request_with_backoff_does_not_retry_non_retriable_http_error(
@@ -122,7 +153,8 @@ def test_request_with_backoff_does_not_retry_non_retriable_http_error(
 
 def test_request_with_backoff_raises_after_exhausting_retries(monkeypatch) -> None:
     """Retriable failures should still raise once retries are exhausted."""
-    session = DummySession([DummyResponse(status_code=503) for _ in range(4)])
+    session = DummySession([DummyResponse(status_code=503) for _ in range(5)])
+    patch_backoff_jitter(monkeypatch)
     sleep_calls = patch_backoff_sleep(monkeypatch)
 
     try:
@@ -137,8 +169,8 @@ def test_request_with_backoff_raises_after_exhausting_retries(monkeypatch) -> No
     else:
         raise AssertionError("Expected HTTPError")
 
-    assert len(session.calls) == 4
-    assert sleep_calls == [0.5, 1.0, 2.0]
+    assert len(session.calls) == 5
+    assert sleep_calls == [1.0, 2.0, 4.0, 8.0]
 
 
 def test_summarize_response_includes_status_url_and_snippet() -> None:

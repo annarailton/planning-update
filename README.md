@@ -11,7 +11,7 @@ https://public.oxford.gov.uk/online-applications/search.do?action=weeklyList
   - Ward
   - Parish
   - Keywords in the application description
-  - Major applications
+  - Major applications listed on Oxford City Council's current major applications page
 - Produces summary with descriptions and links
 - Action that runs weekly and emails summary
 - Config for preferences
@@ -22,6 +22,9 @@ https://public.oxford.gov.uk/online-applications/search.do?action=weeklyList
 using the weekly list filters for `validated`, `decided`, or `both`.
 When `keywords` are supplied, the scraper searches across all wards and parishes
 for proposal text matches instead of applying ward/parish filters.
+When `major = true` is supplied, the scraper also searches across all wards and
+parishes, scrapes the live Oxford City Council major-applications page, and
+keeps only weekly-list results whose `ApplicationRef` appears there.
 
 The lookup data lives in [ward_mappings.json](/Users/annarailton/projects/planning-update/ward_mappings.json),
 and [location_lookup.py](/Users/annarailton/projects/planning-update/location_lookup.py) loads it for the scraper.
@@ -89,6 +92,7 @@ ward = "churchill"
 parish = "Littlemore"
 status_mode = "validated"
 keywords = "photovoltaics, heat pump, ASHP, PV"
+major = true
 email_to = "example@gmail.com"
 ```
 

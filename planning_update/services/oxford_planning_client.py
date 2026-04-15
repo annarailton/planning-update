@@ -26,29 +26,6 @@ def should_retry_response(response: requests.Response) -> bool:
     return response.status_code in RETRY_STATUS_CODES
 
 
-def log_backoff(details: dict[str, object]) -> None:
-    """Emit a concise retry log line for backoff retries."""
-    kwargs = details.get("kwargs", {})
-    method = kwargs.get("method", "REQUEST") if isinstance(kwargs, dict) else "REQUEST"
-    url = kwargs.get("url", "") if isinstance(kwargs, dict) else ""
-    value = details.get("value")
-    if isinstance(value, requests.Response):
-        outcome = f"status {value.status_code}"
-    else:
-        exc = details.get("exception")
-        outcome = exc.__class__.__name__ if exc is not None else "retry"
-
-    logger.warning(
-        "%s %s hit %s, retrying in %.2fs (attempt %s/%s)",
-        method,
-        url,
-        outcome,
-        float(details["wait"]),
-        int(details["tries"]),
-        RETRY_MAX_RETRIES + 1,
-    )
-
-
 def summarize_response(
     response: requests.Response, *, snippet_length: int = 200
 ) -> str:
@@ -74,6 +51,25 @@ def request_with_backoff(
     **kwargs,
 ) -> requests.Response:
     """Send a request with lightweight exponential backoff for transient failures."""
+
+    def log_backoff(details: dict[str, object]) -> None:
+        """Emit a concise retry log line for backoff retries."""
+        value = details.get("value")
+        if isinstance(value, requests.Response):
+            outcome = f"status {value.status_code}"
+        else:
+            exc = details.get("exception")
+            outcome = exc.__class__.__name__ if exc is not None else "retry"
+
+        logger.warning(
+            "%s %s hit %s, retrying in %.2fs (attempt %s/%s)",
+            method,
+            url,
+            outcome,
+            float(details["wait"]),
+            int(details["tries"]),
+            RETRY_MAX_RETRIES + 1,
+        )
 
     @backoff.on_exception(
         backoff.expo,

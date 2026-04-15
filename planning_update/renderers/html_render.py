@@ -98,6 +98,13 @@ def keyword_match_css_class(keyword_matches: list[str] | None) -> str:
     return ""
 
 
+def major_application_css_class(is_major_application: bool) -> str:
+    """Return a modifier CSS class when an application is on the major list."""
+    if is_major_application:
+        return " field-value--major-application"
+    return ""
+
+
 def build_search_criteria(
     *,
     query: PlanningQuery,
@@ -116,6 +123,7 @@ def build_search_criteria(
         "Mode": mode,
         "Week": query.requested_week or "Latest available",
         **({"Keywords": ", ".join(query.keywords)} if query.keywords else {}),
+        **({"Major applications": "Yes"} if query.major else {}),
     }
 
 
@@ -205,6 +213,15 @@ def render_application_html(
                         keyword_match_css_class(application.keyword_matches),
                     )
                     if application.keyword_matches
+                    else None
+                ),
+                (
+                    (
+                        "Major application",
+                        "Yes",
+                        major_application_css_class(application.is_major_application),
+                    )
+                    if application.is_major_application
                     else None
                 ),
             ]
@@ -314,6 +331,7 @@ def render_application_html(
         ".field-value--status-registered{color:var(--color-warning);font-weight:700;}"
         ".field-value--decision-date-past{color:var(--color-success);font-weight:700;}"
         ".field-value--keyword-match{color:var(--color-success);font-weight:700;}"
+        ".field-value--major-application{color:var(--color-success);font-weight:700;}"
         "a{color:var(--color-link);text-decoration:none;}"
         "a:hover{text-decoration:underline;}"
         "</style>"

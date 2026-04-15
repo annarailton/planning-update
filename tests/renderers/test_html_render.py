@@ -210,6 +210,21 @@ def test_render_application_html_colours_keyword_matches_green(
     )
 
 
+def test_render_application_html_colours_major_applications_green(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Major application values should use the success styling when present."""
+    html = html_render.render_application_html(
+        [application_factory(is_major_application=True)]
+    )
+
+    assert ".field-value--major-application{color:var(--color-success);" in html
+    assert (
+        '<td class="field-value field-value--major-application" valign="top">Yes</td>'
+        in html
+    )
+
+
 def test_render_application_html_shows_empty_card_for_empty_results() -> None:
     """The HTML output should render an empty-state card when no applications exist."""
     html = html_render.render_application_html([])

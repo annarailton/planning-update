@@ -208,6 +208,30 @@ def test_build_search_criteria_prefers_actual_week_when_available() -> None:
     assert search_criteria["Week"] == "07 Apr 2026"
 
 
+def test_build_search_criteria_uses_plural_wards_for_multiple_location_queries() -> (
+    None
+):
+    """Search criteria should summarize multiple configured wards."""
+    search_criteria = html_render.build_search_criteria(
+        options=ResolvedCliOptions(
+            status_mode="validated",
+            queries=[
+                PlanningQuery(
+                    ward_name="churchill",
+                    status_mode="validated",
+                ),
+                PlanningQuery(
+                    ward_name="hinksey park",
+                    status_mode="validated",
+                ),
+            ],
+        ),
+    )
+
+    assert search_criteria["Wards"] == "Churchill Ward, Hinksey Park"
+    assert "Ward" not in search_criteria
+
+
 def test_render_application_html_shows_search_criteria_in_header(
     application_factory: Callable[..., Application],
 ) -> None:

@@ -218,7 +218,7 @@ class CliConfig(BaseModel):
     """Optional CLI defaults loaded from TOML."""
 
     debug: bool | None = None
-    ward: str | None = None
+    ward: str | list[str] | None = None
     parish: str | None = None
     status_mode: CliStatusMode | None = None
     week: str | None = None
@@ -231,7 +231,7 @@ class CliInputs(BaseModel):
     """Raw CLI inputs before config defaults are applied."""
 
     debug: bool = False
-    ward: str | None = None
+    ward: str | list[str] | None = None
     parish: str | None = None
     status: CliStatusMode | None = None
     week: str | None = None

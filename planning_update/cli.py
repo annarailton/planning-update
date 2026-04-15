@@ -52,9 +52,12 @@ def run(
         ),
     ] = False,
     ward: Annotated[
-        str | None,
+        list[str] | None,
         typer.Option(
-            help="Optional human-readable ward name to query. Defaults to all wards."
+            help=(
+                "Optional human-readable ward name to query. Repeat --ward to "
+                "search multiple wards. Defaults to all wards."
+            )
         ),
     ] = None,
     parish: Annotated[

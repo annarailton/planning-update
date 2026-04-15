@@ -166,6 +166,53 @@ def test_cli_keywords_are_passed_to_query_and_rendered(
     assert "ashp, pv" in html
 
 
+def test_cli_multiple_wards_expand_into_multiple_queries(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path: Path
+) -> None:
+    """Repeated --ward flags should create one location query per ward."""
+    seen_wards: list[tuple[str | None, str]] = []
+
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        seen_wards.extend(
+            (query.ward_name, query.status_mode) for query in options.queries
+        )
+        return build_report_from_applications(
+            [application_factory()],
+            status_mode="validated",
+        )
+
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
+
+    output_path = tmp_path / "applications.html"
+    monkeypatch.setattr(
+        main,
+        "build_default_output_path",
+        lambda *, generated_at: output_path,
+    )
+    result = runner.invoke(
+        main.app,
+        [
+            "--debug",
+            "--status",
+            "validated",
+            "--ward",
+            "churchill",
+            "--ward",
+            "hinksey park",
+        ],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert seen_wards == [
+        ("churchill", "validated"),
+        ("hinksey park", "validated"),
+    ]
+    html = output_path.read_text(encoding="utf-8")
+    assert "Wards" in html
+    assert "Churchill Ward, Hinksey Park" in html
+
+
 def test_cli_does_not_write_html_output_without_debug(
     application_factory: Callable[..., Application], monkeypatch, tmp_path: Path
 ) -> None:
@@ -501,6 +548,57 @@ def test_cli_uses_explicit_config_file(
     assert result.exit_code == 0
     assert "Found 1 applications." in result.stdout
     assert f"Saved HTML output to {output_path}" in result.stdout
+
+
+def test_cli_reads_multiple_wards_from_config(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path: Path
+) -> None:
+    """CLI should expand multiple wards from config lists into separate queries."""
+    config_path = tmp_path / "planning_update.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                'ward = ["churchill", "hinksey park"]',
+                "debug = true",
+                'status_mode = "validated"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_build_planning_report(*, options) -> PlanningReport:
+        assert options.queries == [
+            PlanningQuery(
+                ward_name="churchill",
+                status_mode="validated",
+            ),
+            PlanningQuery(
+                ward_name="hinksey park",
+                status_mode="validated",
+            ),
+        ]
+        return build_report_from_applications(
+            [application_factory()],
+            status_mode="validated",
+        )
+
+    monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
+    output_path = tmp_path / "planning_applications.html"
+    monkeypatch.setattr(
+        main,
+        "build_default_output_path",
+        lambda *, generated_at: output_path,
+    )
+    result = runner.invoke(
+        main.app,
+        ["--config", str(config_path), "--debug"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    html = output_path.read_text(encoding="utf-8")
+    assert "Wards" in html
+    assert "Churchill Ward, Hinksey Park" in html
 
 
 def test_cli_arguments_override_config(

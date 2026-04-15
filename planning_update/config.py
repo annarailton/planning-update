@@ -12,6 +12,31 @@ from .models import (
 )
 
 
+def parse_wards(value: Any) -> list[str]:
+    """Parse ward config values into a deduplicated list."""
+    if value is None:
+        return []
+
+    parts: list[str]
+    if isinstance(value, str):
+        parts = value.split(",")
+    elif isinstance(value, list):
+        parts = [str(item) for item in value]
+    else:
+        raise TypeError("ward must be provided as a comma-delimited string or list")
+
+    normalized_wards: list[str] = []
+    seen: set[str] = set()
+    for part in parts:
+        ward = part.strip()
+        normalized_key = ward.lower()
+        if not ward or normalized_key in seen:
+            continue
+        seen.add(normalized_key)
+        normalized_wards.append(ward)
+    return normalized_wards
+
+
 def parse_keywords(value: Any) -> list[str]:
     """Parse keyword config values into a normalized lowercase list."""
     if value is None:
@@ -71,7 +96,9 @@ def resolve_cli_options(
     If we have both we do the location-filtered queries first.
     """
     status_mode = cli_inputs.status or cli_config.status_mode or "both"
-    ward_name = cli_inputs.ward if cli_inputs.ward is not None else cli_config.ward
+    ward_names = parse_wards(
+        cli_inputs.ward if cli_inputs.ward is not None else cli_config.ward
+    )
     parish_name = (
         cli_inputs.parish if cli_inputs.parish is not None else cli_config.parish
     )
@@ -83,19 +110,21 @@ def resolve_cli_options(
 
     query_variants: list[dict[str, object]] = []
     if (
-        ward_name is not None
+        ward_names
         or parish_name is not None
         or (not keywords and (not major or status_mode == "decided"))
     ):
         # Add an explicit location-filtered query when requested, or fall back to
         # the default all-ward/all-parish query when no keyword/major scope exists.
-        query_variants.append(
-            {
-                "ward_name": ward_name,
-                "parish_name": parish_name,
-                "requested_week": requested_week,
-            }
-        )
+        location_ward_names = ward_names or [None]
+        for ward_name in location_ward_names:
+            query_variants.append(
+                {
+                    "ward_name": ward_name,
+                    "parish_name": parish_name,
+                    "requested_week": requested_week,
+                }
+            )
     if keywords:
         # Keyword searches always run across all wards/parishes.
         query_variants.append(

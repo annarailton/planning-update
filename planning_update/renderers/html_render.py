@@ -112,16 +112,21 @@ def build_search_criteria(
 ) -> dict[str, str]:
     """Build the rendered search criteria summary for the HTML output."""
     queries = options.queries
-    primary_query = next(
-        (
-            query
-            for query in queries
-            if not query.uses_keyword_matching() and not query.uses_major_matching()
-        ),
-        queries[0],
-    )
+    location_queries = [
+        query
+        for query in queries
+        if not query.uses_keyword_matching() and not query.uses_major_matching()
+    ]
+    primary_query = location_queries[0] if location_queries else queries[0]
     keywords = next((query.keywords for query in queries if query.keywords), [])
     includes_major = any(query.major for query in queries)
+    ward_names = list(
+        dict.fromkeys(
+            query.resolved_ward_name()
+            for query in location_queries
+            if query.resolve_ward_code()
+        )
+    )
 
     mode = {
         "validated": "Validated in this week",
@@ -129,14 +134,18 @@ def build_search_criteria(
         "both": "Validated and decided in this week",
     }[options.status_mode]
 
-    return {
-        "Ward": primary_query.resolved_ward_name(),
+    criteria = {
         "Parish": primary_query.resolved_parish_name(),
         **({"Keywords": ", ".join(keywords)} if keywords else {}),
         **({"Major applications": "Yes"} if includes_major else {}),
         "Mode": mode,
         "Week": actual_week or primary_query.requested_week or "Latest available",
     }
+    if len(ward_names) > 1:
+        criteria = {"Wards": ", ".join(ward_names), **criteria}
+    else:
+        criteria = {"Ward": primary_query.resolved_ward_name(), **criteria}
+    return criteria
 
 
 def render_application_html(

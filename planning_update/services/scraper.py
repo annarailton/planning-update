@@ -1,10 +1,11 @@
 """High-level scraping and enrichment workflow for planning applications."""
 
+import time
 from pathlib import Path
 
 import requests
 
-from ..constants import SCRAPER_CACHE_DIR
+from ..constants import ENRICHMENT_REQUEST_DELAY_SECONDS, SCRAPER_CACHE_DIR
 from ..models import Application, PlanningQuery
 from ..parsing.parser import (
     extract_applications,
@@ -43,9 +44,23 @@ def enrich_application(
         The application with summary-only fields, further information, and
         important dates populated when available.
     """
-    further_information_html, _ = fetch_page(
-        session,
-        build_further_information_tab_url(application.url),
+    request_count = 0
+
+    def fetch_enrichment_page(page_url: str) -> str:
+        """Fetch one enrichment page with a short pause between requests.
+
+        This is to be nice to the planning site. There can be a lot of
+        enrichment requests.
+        """
+        nonlocal request_count
+        if request_count > 0:
+            time.sleep(ENRICHMENT_REQUEST_DELAY_SECONDS)
+        request_count += 1
+        page_html, _ = fetch_page(session, page_url)
+        return page_html
+
+    further_information_html = fetch_enrichment_page(
+        build_further_information_tab_url(application.url)
     )
     ward, parish = extract_further_information(further_information_html)
 
@@ -53,13 +68,13 @@ def enrich_application(
     decided = None
     decision = None
     if query.status_mode == "decided":
-        summary_html, _ = fetch_page(session, application.url)
+        summary_html = fetch_enrichment_page(application.url)
         status, decided, decision = extract_summary_fields(summary_html)
 
     consultation_deadline = None
     determination_deadline = None
     if query.status_mode == "validated":
-        dates_html, _ = fetch_page(session, build_dates_tab_url(application.url))
+        dates_html = fetch_enrichment_page(build_dates_tab_url(application.url))
         consultation_deadline, determination_deadline = extract_important_dates(
             dates_html
         )

@@ -142,7 +142,7 @@ def filter_applications_by_major(
 
 def collect_result_applications(
     session: requests.Session, *, query: PlanningQuery
-) -> list[Application]:
+) -> tuple[list[Application], str]:
     """Collect applications from the weekly-list results pages before enrichment."""
     csrf_token, weeks = fetch_form(session)
     week = query.selected_week(weeks)
@@ -156,30 +156,40 @@ def collect_result_applications(
     for pagination_url in extract_pagination_urls(html, page_url):
         next_html, next_page_url = fetch_page(session, pagination_url)
         applications.extend(extract_applications(next_html, week, next_page_url))
-    return applications
+    return applications, week
 
 
-def fetch_latest_applications(query: PlanningQuery) -> list[Application]:
+def fetch_latest_applications(query: PlanningQuery) -> tuple[list[Application], str]:
     """Fetch applications for the selected or latest available week.
 
     Args:
         query: User-facing query options for the weekly list search.
 
     Returns:
-        list of Applications
+        A tuple of ``(applications, week)`` where ``week`` is the actual
+        weekly-list label selected from the Oxford form.
     """
     session = requests.Session()
     session.headers.update({"User-Agent": "planning-update/0.1"})
 
-    # Proposal text is available on the weekly-list result cards, so keyword
-    # matching happens before we hit individual application pages for enrichment.
-    applications = collect_result_applications(session, query=query)
+    applications, week = collect_result_applications(session, query=query)
     applications = filter_applications_by_keywords(applications, query=query)
     applications = filter_applications_by_major(session, applications, query=query)
-    return [
-        enrich_application(session, application, query=query)
-        for application in applications
-    ]
+    return (
+        [
+            enrich_application(session, application, query=query)
+            for application in applications
+        ],
+        week,
+    )
+
+
+def resolve_actual_week(query: PlanningQuery) -> str:
+    """Resolve the actual week label the query would use from the live form."""
+    session = requests.Session()
+    session.headers.update({"User-Agent": "planning-update/0.1"})
+    _, weeks = fetch_form(session)
+    return query.selected_week(weeks)
 
 
 def fetch_latest_applications_cached(
@@ -190,15 +200,15 @@ def fetch_latest_applications_cached(
     if cached_applications is not None:
         return cached_applications
 
-    applications = fetch_latest_applications(query)
+    applications, _ = fetch_latest_applications(query)
     save_cached_applications(query, applications, cache_dir=cache_dir)
     return applications
 
 
 def fetch_applications_for_query(
     *, query: PlanningQuery, debug: bool
-) -> list[Application]:
-    """Fetch applications, using the local cache for debug runs."""
+) -> tuple[list[Application], str | None]:
+    """Fetch applications plus the actual selected week when available."""
     if debug:
-        return fetch_latest_applications_cached(query)
+        return fetch_latest_applications_cached(query), resolve_actual_week(query)
     return fetch_latest_applications(query)

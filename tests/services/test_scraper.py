@@ -8,6 +8,7 @@ from planning_update.models import Application, ApplicationRef, PlanningQuery
 from planning_update.services.scraper import (
     collect_result_applications,
     enrich_application,
+    fetch_applications_for_query,
     fetch_latest_applications,
     fetch_latest_applications_cached,
     filter_applications_by_keywords,
@@ -104,7 +105,7 @@ def test_fetch_latest_applications_does_not_hit_major_page_when_disabled(
     """Non-major runs should not request the Oxford major-applications page."""
     monkeypatch.setattr(
         "planning_update.services.scraper.collect_result_applications",
-        lambda session, *, query: [application_factory()],
+        lambda session, *, query: ([application_factory()], "07 Apr 2026"),
     )
 
     def fail_fetch_major_applications_page(session: requests.Session) -> str:
@@ -119,9 +120,10 @@ def test_fetch_latest_applications_does_not_hit_major_page_when_disabled(
         lambda session, application, *, query: application,
     )
 
-    applications = fetch_latest_applications(PlanningQuery())
+    applications, week = fetch_latest_applications(PlanningQuery())
 
     assert len(applications) == 1
+    assert week == "07 Apr 2026"
 
 
 def test_fetch_latest_applications_cached_reuses_saved_results(
@@ -132,10 +134,12 @@ def test_fetch_latest_applications_cached_reuses_saved_results(
     applications = [application_factory()]
     fetch_calls = 0
 
-    def fake_fetch_latest_applications(_: PlanningQuery) -> list[Application]:
+    def fake_fetch_latest_applications(
+        _: PlanningQuery,
+    ) -> tuple[list[Application], str]:
         nonlocal fetch_calls
         fetch_calls += 1
-        return applications
+        return applications, "07 Apr 2026"
 
     monkeypatch.setattr(
         "planning_update.services.scraper.fetch_latest_applications",
@@ -150,7 +154,32 @@ def test_fetch_latest_applications_cached_reuses_saved_results(
     assert fetch_calls == 1
 
 
-def test_fetch_latest_applications_only_enriches_keyword_matches(
+def test_fetch_applications_for_query_with_week_resolves_live_week_in_debug_mode(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
+) -> None:
+    """Debug runs should still resolve and return the actual selected week."""
+    query = PlanningQuery(status_mode="validated")
+    cached_applications = [application_factory()]
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_form",
+        lambda session: ("csrf-123", ["13 Apr 2026", "06 Apr 2026"]),
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.load_cached_applications",
+        lambda query, *, cache_dir: cached_applications,
+    )
+
+    applications, week = fetch_applications_for_query(
+        query=query,
+        debug=True,
+    )
+
+    assert applications == cached_applications
+    assert week == "13 Apr 2026"
+
+
+def test_fetch_latest_applications_enriches_keyword_matches(
     application_factory: Callable[..., Application], monkeypatch
 ) -> None:
     """Keyword searches should enrich only the applications that match by proposal."""
@@ -158,16 +187,19 @@ def test_fetch_latest_applications_only_enriches_keyword_matches(
 
     monkeypatch.setattr(
         "planning_update.services.scraper.collect_result_applications",
-        lambda session, *, query: [
-            application_factory(
-                application_ref={"value": "26/00281/FUL"},
-                proposal="Install ASHP and rooftop PV",
-            ),
-            application_factory(
-                application_ref={"value": "26/00282/FUL"},
-                proposal="Rear extension",
-            ),
-        ],
+        lambda session, *, query: (
+            [
+                application_factory(
+                    application_ref={"value": "26/00281/FUL"},
+                    proposal="Install ASHP and rooftop PV",
+                ),
+                application_factory(
+                    application_ref={"value": "26/00282/FUL"},
+                    proposal="Rear extension",
+                ),
+            ],
+            "07 Apr 2026",
+        ),
     )
 
     def fake_enrich_application(
@@ -180,7 +212,7 @@ def test_fetch_latest_applications_only_enriches_keyword_matches(
         "planning_update.services.scraper.enrich_application", fake_enrich_application
     )
 
-    applications = fetch_latest_applications(
+    applications, week = fetch_latest_applications(
         PlanningQuery(keywords=["heat pump", "ashp", "pv"])
     )
 
@@ -189,9 +221,10 @@ def test_fetch_latest_applications_only_enriches_keyword_matches(
     ]
     assert applications[0].keyword_matches == ["ashp", "pv"]
     assert seen_refs == ["26/00281/FUL"]
+    assert week == "07 Apr 2026"
 
 
-def test_fetch_latest_applications_only_enriches_major_matches(
+def test_fetch_latest_applications_enriches_major_matches(
     application_factory: Callable[..., Application], monkeypatch
 ) -> None:
     """Major searches should enrich only the applications on the major list."""
@@ -199,16 +232,19 @@ def test_fetch_latest_applications_only_enriches_major_matches(
 
     monkeypatch.setattr(
         "planning_update.services.scraper.collect_result_applications",
-        lambda session, *, query: [
-            application_factory(
-                application_ref={"value": "26/00281/FUL"},
-                proposal="Install ASHP and rooftop PV",
-            ),
-            application_factory(
-                application_ref={"value": "26/00282/FUL"},
-                proposal="Rear extension",
-            ),
-        ],
+        lambda session, *, query: (
+            [
+                application_factory(
+                    application_ref={"value": "26/00281/FUL"},
+                    proposal="Install ASHP and rooftop PV",
+                ),
+                application_factory(
+                    application_ref={"value": "26/00282/FUL"},
+                    proposal="Rear extension",
+                ),
+            ],
+            "07 Apr 2026",
+        ),
     )
     monkeypatch.setattr(
         "planning_update.services.scraper.fetch_major_applications_page",
@@ -229,13 +265,14 @@ def test_fetch_latest_applications_only_enriches_major_matches(
         "planning_update.services.scraper.enrich_application", fake_enrich_application
     )
 
-    applications = fetch_latest_applications(PlanningQuery(major=True))
+    applications, week = fetch_latest_applications(PlanningQuery(major=True))
 
     assert [application.application_ref.value for application in applications] == [
         "26/00282/FUL"
     ]
     assert applications[0].is_major_application is True
     assert seen_refs == ["26/00282/FUL"]
+    assert week == "07 Apr 2026"
 
 
 def test_enrich_application_skips_summary_page_for_validated_queries(

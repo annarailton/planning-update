@@ -248,7 +248,14 @@ def render_application_html(
         rendered_sections = "".join(
             (
                 f'<h2 class="section-title">{escape(section.title)}</h2>'
-                f"{render_cards(section.applications, empty_state_message=section.empty_state_message)}"
+                + (
+                    f'<p class="section-notice">{escape(section.major_apps_notice_message)}</p>'
+                    if section.major_apps_notice_message
+                    else ""
+                )
+                + (
+                    f"{render_cards(section.applications, empty_state_message=section.empty_state_message)}"
+                )
             )
             for section in sections
         )
@@ -307,6 +314,7 @@ def render_application_html(
         ".criteria-label{font-weight:700;color:var(--color-text-strong);padding:0 10px 6px 0;white-space:nowrap;}"
         ".criteria-value{color:var(--color-text-secondary);padding:0 0 6px 0;}"
         ".section-title{margin:18px 0 8px;font-size:18px;line-height:1.2;color:var(--color-text-strong);}"
+        ".section-notice{margin:0 0 8px;color:var(--color-text-secondary);font-size:14px;font-weight:700;}"
         ".card{background:var(--color-surface-primary);border:1px solid var(--color-border-subtle);border-radius:12px;box-shadow:0 4px 12px var(--color-shadow);margin-top:12px;}"
         ".card td{padding:14px;}"
         ".card--empty td{padding:18px 14px;}"

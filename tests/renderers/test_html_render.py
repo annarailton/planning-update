@@ -167,6 +167,7 @@ def test_render_application_html_shows_search_criteria_in_header(
                 "Mode": "Decided in this week",
                 "Week": "30 Mar 2026",
                 "Keywords": "photovoltaics, heat pump",
+                "Major applications": "Yes",
             },
         )
     finally:
@@ -181,6 +182,8 @@ def test_render_application_html_shows_search_criteria_in_header(
     assert "Decided in this week" in html
     assert "Keywords:" in html
     assert "photovoltaics, heat pump" in html
+    assert "Major applications:" in html
+    assert "Yes" in html
 
 
 def test_render_application_html_shows_keyword_matches(
@@ -251,6 +254,26 @@ def test_render_application_html_shows_empty_card_for_empty_section() -> None:
     assert "Decided applications" in html
     assert "No applications" in html
     assert "Not searched" in html
+
+
+def test_render_application_html_shows_section_notice_under_header() -> None:
+    """Section notices should render directly below the section title."""
+    html = html_render.render_application_html(
+        [],
+        sections=[
+            ApplicationSection(
+                title="Validated applications",
+                applications=[],
+                major_apps_notice_message="There are NO major applications validated this week",
+            ),
+        ],
+    )
+
+    assert (
+        '<h2 class="section-title">Validated applications</h2>'
+        '<p class="section-notice">There are NO major applications validated this week</p>'
+        in html
+    )
 
 
 def test_render_application_html_renders_both_empty_sections() -> None:

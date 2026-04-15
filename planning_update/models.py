@@ -254,6 +254,9 @@ class ApplicationSection(BaseModel):
 
     title: str
     applications: list[Application]
+    major_apps_notice_message: str | None = (
+        None  # This holds whether to show the "no major applications" notice
+    )
     empty_state_message: str = "No applications"
 
 

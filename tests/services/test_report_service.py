@@ -84,6 +84,103 @@ def test_build_planning_report_marks_unsearched_section(
     assert report.sections[1].empty_state_message == "Not searched"
 
 
+def test_build_planning_report_flags_when_no_major_validated_applications_exist(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Validated sections should show a notice when a major query finds none."""
+
+    def fake_fetch_applications_for_query(
+        *, query: PlanningQuery, debug: bool
+    ) -> list[Application]:
+        if query.major:
+            return []
+        return [application_factory()]
+
+    monkeypatch.setattr(
+        "planning_update.services.report_service.fetch_applications_for_query",
+        fake_fetch_applications_for_query,
+    )
+
+    report = build_planning_report(
+        options=ResolvedCliOptions(
+            debug=False,
+            status_mode="validated",
+            queries=[
+                PlanningQuery(status_mode="validated"),
+                PlanningQuery(status_mode="validated", major=True),
+            ],
+        )
+    )
+
+    assert report.sections[0].major_apps_notice_message == (
+        "There are NO major applications validated this week"
+    )
+    assert report.sections[1].major_apps_notice_message is None
+
+
+def test_build_planning_report_does_not_flag_missing_major_decided_applications(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Decided sections should not show a no-major notice."""
+
+    def fake_fetch_applications_for_query(
+        *, query: PlanningQuery, debug: bool
+    ) -> list[Application]:
+        if query.major:
+            return []
+        return [application_factory()]
+
+    monkeypatch.setattr(
+        "planning_update.services.report_service.fetch_applications_for_query",
+        fake_fetch_applications_for_query,
+    )
+
+    report = build_planning_report(
+        options=ResolvedCliOptions(
+            debug=False,
+            status_mode="decided",
+            queries=[
+                PlanningQuery(status_mode="decided"),
+                PlanningQuery(status_mode="decided", major=True),
+            ],
+        )
+    )
+
+    assert report.sections[0].major_apps_notice_message is None
+    assert report.sections[1].major_apps_notice_message is None
+
+
+def test_build_planning_report_does_not_flag_when_major_application_exists(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Sections should not show the notice when a major application is present."""
+
+    def fake_fetch_applications_for_query(
+        *, query: PlanningQuery, debug: bool
+    ) -> list[Application]:
+        if query.major:
+            return [application_factory(is_major_application=True)]
+        return [application_factory()]
+
+    monkeypatch.setattr(
+        "planning_update.services.report_service.fetch_applications_for_query",
+        fake_fetch_applications_for_query,
+    )
+
+    report = build_planning_report(
+        options=ResolvedCliOptions(
+            debug=False,
+            status_mode="validated",
+            queries=[
+                PlanningQuery(status_mode="validated"),
+                PlanningQuery(status_mode="validated", major=True),
+            ],
+        )
+    )
+
+    assert report.sections[0].major_apps_notice_message is None
+
+
 def test_merge_applications_deduplicates_and_merges_keyword_matches(
     application_factory: Callable[..., Application]
 ) -> None:

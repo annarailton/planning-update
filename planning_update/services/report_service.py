@@ -12,6 +12,9 @@ SECTION_TITLES = {
     "validated": "Validated applications",
     "decided": "Decided applications",
 }
+NO_MAJOR_APPLICATIONS_MESSAGES = {
+    "validated": "There are NO major applications validated this week",
+}
 
 
 def merge_applications(
@@ -55,8 +58,14 @@ def build_planning_report(*, options: ResolvedCliOptions) -> PlanningReport:
         "validated": [],
         "decided": [],
     }
+    major_requested_by_status = {
+        "validated": False,
+        "decided": False,
+    }
 
     for query in options.queries:
+        if query.uses_major_matching():
+            major_requested_by_status[query.status_mode] = True
         section_applications = fetch_applications_for_query(
             query=query,
             debug=options.debug,
@@ -70,6 +79,18 @@ def build_planning_report(*, options: ResolvedCliOptions) -> PlanningReport:
         ApplicationSection(
             title=SECTION_TITLES[status_mode],
             applications=applications_by_status[status_mode],
+            major_apps_notice_message=(
+                NO_MAJOR_APPLICATIONS_MESSAGES[status_mode]
+                if (
+                    status_mode in NO_MAJOR_APPLICATIONS_MESSAGES
+                    and major_requested_by_status[status_mode]
+                    and not any(
+                        application.is_major_application
+                        for application in applications_by_status[status_mode]
+                    )
+                )
+                else None
+            ),
             empty_state_message=(
                 "No applications"
                 if options.status_mode == "both" or status_mode == options.status_mode

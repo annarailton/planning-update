@@ -9,6 +9,8 @@ import requests
 from ..constants import (
     DEFAULT_TIMEOUT_SECONDS,
     MAJOR_APPLICATIONS_URL,
+    RATE_LIMIT_INITIAL_BACKOFF_SECONDS,
+    RATE_LIMIT_STATUS_CODES,
     RESULTS_URL,
     RETRY_INITIAL_BACKOFF_SECONDS,
     RETRY_MAX_RETRIES,
@@ -23,6 +25,18 @@ logger = logging.getLogger(__name__)
 
 def should_retry_response(response: requests.Response) -> bool:
     """Return whether a response should be retried."""
+    return should_retry_rate_limited_response(
+        response
+    ) or should_retry_transient_response(response)
+
+
+def should_retry_rate_limited_response(response: requests.Response) -> bool:
+    """Return whether a response indicates rate limiting."""
+    return response.status_code in RATE_LIMIT_STATUS_CODES
+
+
+def should_retry_transient_response(response: requests.Response) -> bool:
+    """Return whether a response indicates a transient server error."""
     return response.status_code in RETRY_STATUS_CODES
 
 
@@ -70,7 +84,15 @@ def request_with_backoff(
     # inspect the response before deciding whether to raise for status or retry
     @backoff.on_predicate(
         backoff.expo,
-        predicate=should_retry_response,
+        predicate=should_retry_rate_limited_response,
+        max_tries=RETRY_MAX_RETRIES + 1,
+        factor=RATE_LIMIT_INITIAL_BACKOFF_SECONDS,
+        jitter=backoff.full_jitter,
+        on_backoff=log_backoff,
+    )
+    @backoff.on_predicate(
+        backoff.expo,
+        predicate=should_retry_transient_response,
         max_tries=RETRY_MAX_RETRIES + 1,
         factor=RETRY_INITIAL_BACKOFF_SECONDS,
         jitter=backoff.full_jitter,

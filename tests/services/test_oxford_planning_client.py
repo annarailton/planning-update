@@ -73,7 +73,7 @@ def test_request_with_backoff_retries_rate_limit_then_succeeds(monkeypatch) -> N
 
     assert response.status_code == 200
     assert len(session.calls) == 2
-    assert sleep_calls == [1.0]
+    assert sleep_calls == [2.0]
 
 
 def test_request_with_backoff_retries_connection_errors_then_succeeds(
@@ -83,6 +83,30 @@ def test_request_with_backoff_retries_connection_errors_then_succeeds(
     session = DummySession(
         [
             requests.ConnectionError("boom"),
+            DummyResponse(status_code=200, text="ok"),
+        ]
+    )
+    patch_backoff_jitter(monkeypatch)
+    sleep_calls = patch_backoff_sleep(monkeypatch)
+
+    response = request_with_backoff(
+        session,
+        method="GET",
+        url="https://example.com",
+    )
+
+    assert response.status_code == 200
+    assert len(session.calls) == 2
+    assert sleep_calls == [1.0]
+
+
+def test_request_with_backoff_retries_5xx_with_shorter_backoff_than_429(
+    monkeypatch,
+) -> None:
+    """Transient 5xx responses should use the non-rate-limit retry policy."""
+    session = DummySession(
+        [
+            DummyResponse(status_code=503),
             DummyResponse(status_code=200, text="ok"),
         ]
     )

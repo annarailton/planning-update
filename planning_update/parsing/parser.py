@@ -166,6 +166,33 @@ def extract_further_information(html: str) -> tuple[str | None, str | None]:
     return values.get("ward"), values.get("parish")
 
 
+def extract_major_application_refs(html: str) -> list[ApplicationRef]:
+    """Extract application references from Oxford's current major-applications page."""
+    soup = BeautifulSoup(html, "html.parser")
+    major_heading = soup.find(
+        ["h2", "h3"], string=re.compile(r"major applications", re.I)
+    )
+    if major_heading is None:
+        return []
+
+    refs: list[ApplicationRef] = []
+    seen_refs: set[str] = set()
+    for sibling in major_heading.find_next_siblings():
+        if not isinstance(sibling, Tag):
+            continue
+        if sibling.name in {"h1", "h2"}:
+            break
+
+        for anchor in sibling.select("a[href]"):
+            raw_ref = normalize_space(anchor.get_text(" ", strip=True))
+            if not APPLICATION_ID_RE.fullmatch(raw_ref) or raw_ref in seen_refs:
+                continue
+            refs.append(ApplicationRef(value=raw_ref))
+            seen_refs.add(raw_ref)
+
+    return refs
+
+
 def extract_search_result_cards(soup: BeautifulSoup, week: str) -> list[Application]:
     """Extract applications from standard multi-result search result cards.
 

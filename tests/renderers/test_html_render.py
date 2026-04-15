@@ -28,6 +28,11 @@ from planning_update.renderers import html_render
             ".field-value--decision-approved{color:var(--color-success);",
         ),
         (
+            "Raise no objection",
+            "field-value--decision-approved",
+            ".field-value--decision-approved{color:var(--color-success);",
+        ),
+        (
             "Rejected",
             "field-value--decision-rejected",
             ".field-value--decision-rejected{color:var(--color-danger);",

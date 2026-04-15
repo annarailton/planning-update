@@ -66,7 +66,11 @@ def date_css_class(value: date | None, *, today: date) -> str:
 
 def decision_css_class(decision: str | None) -> str:
     """Return a modifier CSS class for known decision values."""
-    if decision in {"Approved", "Prior approval not required"}:
+    if decision in {
+        "Approved",
+        "Prior approval not required",
+        "Raise no objection",
+    }:
         return " field-value--decision-approved"
     if decision in {"Rejected", "Application Withdrawn"}:
         return " field-value--decision-rejected"

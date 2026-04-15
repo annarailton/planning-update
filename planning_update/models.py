@@ -265,3 +265,4 @@ class PlanningReport(BaseModel):
 
     applications: list[Application]
     sections: list[ApplicationSection]
+    actual_week: str | None = None

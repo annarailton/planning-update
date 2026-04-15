@@ -19,7 +19,7 @@ from ..constants import (
     TEXT_TERTIARY_COLOR,
     WARNING_COLOR,
 )
-from ..models import Application, ApplicationSection, CliStatusMode, PlanningQuery
+from ..models import Application, ApplicationSection, ResolvedCliOptions
 
 
 def current_date() -> date:
@@ -107,23 +107,34 @@ def major_application_css_class(is_major_application: bool) -> str:
 
 def build_search_criteria(
     *,
-    query: PlanningQuery,
-    status_mode: CliStatusMode,
+    options: ResolvedCliOptions,
 ) -> dict[str, str]:
     """Build the rendered search criteria summary for the HTML output."""
+    queries = options.queries
+    primary_query = next(
+        (
+            query
+            for query in queries
+            if not query.uses_keyword_matching() and not query.uses_major_matching()
+        ),
+        queries[0],
+    )
+    keywords = next((query.keywords for query in queries if query.keywords), [])
+    includes_major = any(query.major for query in queries)
+
     mode = {
         "validated": "Validated in this week",
         "decided": "Decided in this week",
         "both": "Validated and decided in this week",
-    }[status_mode]
+    }[options.status_mode]
 
     return {
-        "Ward": query.resolved_ward_name(),
-        "Parish": query.resolved_parish_name(),
+        "Ward": primary_query.resolved_ward_name(),
+        "Parish": primary_query.resolved_parish_name(),
+        **({"Keywords": ", ".join(keywords)} if keywords else {}),
+        **({"Major applications": "Yes"} if includes_major else {}),
         "Mode": mode,
-        "Week": query.requested_week or "Latest available",
-        **({"Keywords": ", ".join(query.keywords)} if query.keywords else {}),
-        **({"Major applications": "Yes"} if query.major else {}),
+        "Week": primary_query.requested_week or "Latest available",
     }
 
 

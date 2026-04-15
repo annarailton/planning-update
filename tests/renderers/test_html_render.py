@@ -5,7 +5,12 @@ from datetime import date, datetime
 
 import pytest
 
-from planning_update.models import Application, ApplicationSection
+from planning_update.models import (
+    Application,
+    ApplicationSection,
+    PlanningQuery,
+    ResolvedCliOptions,
+)
 from planning_update.renderers import html_render
 
 
@@ -150,6 +155,41 @@ def test_render_application_html_colours_past_decision_dates_green(
     )
 
 
+def test_build_search_criteria_includes_keywords_and_major_from_all_queries() -> None:
+    """Search criteria should summarize the full resolved query set."""
+    search_criteria = html_render.build_search_criteria(
+        options=ResolvedCliOptions(
+            status_mode="both",
+            queries=[
+                PlanningQuery(
+                    ward_name="churchill",
+                    requested_week="30 Mar 2026",
+                    status_mode="validated",
+                ),
+                PlanningQuery(
+                    keywords=["photovoltaics", "heat pump"],
+                    requested_week="30 Mar 2026",
+                    status_mode="validated",
+                ),
+                PlanningQuery(
+                    major=True,
+                    requested_week="30 Mar 2026",
+                    status_mode="validated",
+                ),
+            ],
+        ),
+    )
+
+    assert search_criteria == {
+        "Ward": "Churchill Ward",
+        "Parish": "All parishes",
+        "Mode": "Validated and decided in this week",
+        "Week": "30 Mar 2026",
+        "Keywords": "photovoltaics, heat pump",
+        "Major applications": "Yes",
+    }
+
+
 def test_render_application_html_shows_search_criteria_in_header(
     application_factory: Callable[..., Application],
 ) -> None:
@@ -161,14 +201,28 @@ def test_render_application_html_shows_search_criteria_in_header(
     try:
         html = html_render.render_application_html(
             [application_factory(decision="Approved")],
-            search_criteria={
-                "Ward": "Churchill",
-                "Parish": "All parishes",
-                "Mode": "Decided in this week",
-                "Week": "30 Mar 2026",
-                "Keywords": "photovoltaics, heat pump",
-                "Major applications": "Yes",
-            },
+            search_criteria=html_render.build_search_criteria(
+                options=ResolvedCliOptions(
+                    status_mode="decided",
+                    queries=[
+                        PlanningQuery(
+                            ward_name="churchill",
+                            requested_week="30 Mar 2026",
+                            status_mode="decided",
+                        ),
+                        PlanningQuery(
+                            keywords=["photovoltaics", "heat pump"],
+                            requested_week="30 Mar 2026",
+                            status_mode="decided",
+                        ),
+                        PlanningQuery(
+                            major=True,
+                            requested_week="30 Mar 2026",
+                            status_mode="validated",
+                        ),
+                    ],
+                ),
+            ),
         )
     finally:
         monkeypatch.undo()

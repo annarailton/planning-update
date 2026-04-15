@@ -131,8 +131,7 @@ def run(
     generated_at = datetime.now()
     output_path = build_default_output_path(generated_at=generated_at)
     search_criteria = build_search_criteria(
-        query=options.queries[0],
-        status_mode=options.status_mode,
+        options=options,
     )
     html_output = render_application_html(
         report.applications,

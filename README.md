@@ -58,23 +58,30 @@ uv sync
 
 After that you can run the scraper with either the console script or Python directly.
 
+If you want to send emails with `--email-to`, create a `.env` file in the project
+root with your Resend API key:
+
+```bash
+RESEND_API_KEY=re_your_key_here
+```
+
 Example:
 
 ```bash
+# Run with default settings
 uv run oxford-weekly
+# Save the rendered HTML locally instead of emailing
 uv run oxford-weekly --debug
+# Filter to one parish
 uv run oxford-weekly --parish "Littlemore"
+# Filter to one ward
 uv run oxford-weekly --ward "churchill"
+# Filter to multiple wards
+uv run oxford-weekly --ward "churchill" --ward "hinksey park"
+# Query an explicit week from the Oxford dropdown
 uv run oxford-weekly --week "30 Mar 2026"
+# Match keywords across all wards and parishes
 uv run oxford-weekly --keywords "photovoltaics, heat pump, ASHP, PV"
-
-python main.py
-python main.py --parish "Littlemore"
-python main.py --ward "churchill"
-python main.py --ward "churchill" --parish "Littlemore"
-python main.py --week "30 Mar 2026"
-python main.py --status decided
-python main.py --status both
 ```
 
 ## Config file
@@ -84,11 +91,14 @@ The CLI only loads config values when you pass an explicit file with `--config`.
 CLI flags still win over config values, so this works well for keeping your usual
 ward, mode, email recipient, and fallback settings in one place.
 
+If your config uses `email_to`, you will also need a `.env` file with
+`RESEND_API_KEY`.
+
 Example:
 
 ```toml
 debug = true
-ward = "churchill"
+ward = ["churchill", "hinksey park"]
 parish = "Littlemore"
 status_mode = "validated"
 keywords = "photovoltaics, heat pump, ASHP, PV"
@@ -96,18 +106,11 @@ major = true
 email_to = "example@gmail.com"
 ```
 
-You can also nest the same values under `[cli]` if you prefer:
-
-```toml
-[cli]
-ward = "churchill"
-status_mode = "decided"
-```
-
 Examples with config:
 
 ```bash
+# Load defaults from config and save HTML output locally
 uv run oxford-weekly --config planning_update.toml --debug
+# Load config but override status from the CLI
 uv run oxford-weekly --config /path/to/planning_update.toml --status decided
-python main.py --config planning_update.toml
 ```

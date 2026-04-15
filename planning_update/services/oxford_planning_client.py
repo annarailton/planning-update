@@ -142,6 +142,14 @@ def fetch_major_applications_page(session: requests.Session) -> str:
     return response.text
 
 
+def resolve_actual_week(query: PlanningQuery) -> str:
+    """Resolve the actual week label a query would use from the live weekly form."""
+    session = requests.Session()
+    session.headers.update({"User-Agent": "planning-update/0.1"})
+    _, weeks = fetch_form(session)
+    return query.selected_week(weeks)
+
+
 def build_dates_tab_url(application_url: str) -> str:
     """Build the dates-tab URL for a planning application."""
     parsed_url = urlparse(application_url)

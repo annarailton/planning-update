@@ -22,6 +22,7 @@ from .oxford_planning_client import (
     fetch_major_applications_page,
     fetch_page,
     fetch_results_page,
+    resolve_actual_week,
 )
 
 
@@ -182,14 +183,6 @@ def fetch_latest_applications(query: PlanningQuery) -> tuple[list[Application], 
         ],
         week,
     )
-
-
-def resolve_actual_week(query: PlanningQuery) -> str:
-    """Resolve the actual week label the query would use from the live form."""
-    session = requests.Session()
-    session.headers.update({"User-Agent": "planning-update/0.1"})
-    _, weeks = fetch_form(session)
-    return query.selected_week(weeks)
 
 
 def fetch_latest_applications_cached(

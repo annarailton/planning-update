@@ -190,6 +190,52 @@ def test_render_application_html_shows_address_inline_with_application_ref(
     assert '<p class="address">' not in html
 
 
+def test_render_application_html_shows_inclusion_reason_when_present(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Cards should show the inclusion reason when local distance filtering matched."""
+    html = html_render.render_application_html(
+        [
+            application_factory(
+                inclusion_reason="Hinksey Park + 0.25 miles",
+                keyword_matches=["heat pump", "pv"],
+                is_major_application=True,
+            )
+        ]
+    )
+
+    assert "Included because" in html
+    assert "Hinksey Park + 0.25 miles" in html
+    assert "keyword match: heat pump, pv" in html
+    assert "major" in html
+    assert ".field-label--success{color:var(--color-success);}" in html
+    assert 'class="field-label field-label--success"' in html
+
+
+def test_render_application_html_shows_included_because_for_keyword_matches(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Keyword-matched cards should explain that in the included-because row."""
+    html = html_render.render_application_html(
+        [application_factory(keyword_matches=["heat pump", "pv"])]
+    )
+
+    assert "Included because" in html
+    assert "keyword match: heat pump, pv" in html
+
+
+def test_render_application_html_shows_included_because_for_major_applications(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Major-application cards should explain that in the included-because row."""
+    html = html_render.render_application_html(
+        [application_factory(is_major_application=True)]
+    )
+
+    assert "Included because" in html
+    assert "major" in html
+
+
 def test_build_search_criteria_includes_keywords_and_major_from_all_queries() -> None:
     """Search criteria should summarize the full resolved query set."""
     search_criteria = html_render.build_search_criteria(
@@ -199,6 +245,8 @@ def test_build_search_criteria_includes_keywords_and_major_from_all_queries() ->
                 PlanningQuery(
                     ward_name="churchill",
                     requested_week="30 Mar 2026",
+                    distance_around_ward_label="0.25 miles",
+                    distance_around_parish_label="0.4 km",
                     status_mode="validated",
                 ),
                 PlanningQuery(
@@ -217,7 +265,9 @@ def test_build_search_criteria_includes_keywords_and_major_from_all_queries() ->
 
     assert search_criteria == {
         "Ward": "Churchill Ward",
+        "Distance around ward": "0.25 miles",
         "Parish": "All parishes",
+        "Distance around parish": "0.4 km",
         "Mode": "Validated and decided in this week",
         "Week": "30 Mar 2026",
         "Keywords": "photovoltaics, heat pump",
@@ -253,10 +303,12 @@ def test_build_search_criteria_uses_plural_wards_for_multiple_location_queries()
             queries=[
                 PlanningQuery(
                     ward_name="churchill",
+                    distance_around_ward_label="0.25 miles",
                     status_mode="validated",
                 ),
                 PlanningQuery(
                     ward_name="hinksey park",
+                    distance_around_ward_label="0.25 miles",
                     status_mode="validated",
                 ),
             ],
@@ -264,6 +316,7 @@ def test_build_search_criteria_uses_plural_wards_for_multiple_location_queries()
     )
 
     assert search_criteria["Wards"] == "Churchill Ward, Hinksey Park"
+    assert search_criteria["Distance around wards"] == "0.25 miles"
     assert "Ward" not in search_criteria
 
 
@@ -285,6 +338,7 @@ def test_render_application_html_shows_search_criteria_in_header(
                         PlanningQuery(
                             ward_name="churchill",
                             requested_week="30 Mar 2026",
+                            distance_around_ward_label="0.25 miles",
                             status_mode="decided",
                         ),
                         PlanningQuery(
@@ -310,6 +364,8 @@ def test_render_application_html_shows_search_criteria_in_header(
     assert "Generated 2026-04-13 09:30" in html
     assert "Ward:" in html
     assert "Churchill" in html
+    assert "Distance around ward:" in html
+    assert "0.25 miles" in html
     assert "Mode:" in html
     assert "Decided in this week" in html
     assert "Keywords:" in html

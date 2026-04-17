@@ -109,6 +109,20 @@ def major_application_css_class(is_major_application: bool) -> str:
     return ""
 
 
+def included_because_text(application: Application) -> str | None:
+    """Build the combined inclusion reason shown on a result card."""
+    reasons: list[str] = []
+    if application.inclusion_reason:
+        reasons.append(application.inclusion_reason)
+    if application.keyword_matches:
+        reasons.append(f"keyword match: {', '.join(application.keyword_matches)}")
+    if application.is_major_application:
+        reasons.append("major")
+    if not reasons:
+        return None
+    return "; ".join(reasons)
+
+
 def build_search_criteria(
     *,
     options: ResolvedCliOptions,
@@ -124,6 +138,22 @@ def build_search_criteria(
     primary_query = location_queries[0] if location_queries else queries[0]
     keywords = next((query.keywords for query in queries if query.keywords), [])
     includes_major = any(query.major for query in queries)
+    ward_distance = next(
+        (
+            query.distance_around_ward_label
+            for query in location_queries
+            if query.distance_around_ward_label
+        ),
+        None,
+    )
+    parish_distance = next(
+        (
+            query.distance_around_parish_label
+            for query in location_queries
+            if query.distance_around_parish_label
+        ),
+        None,
+    )
     ward_names = list(
         dict.fromkeys(
             query.resolved_ward_name()
@@ -140,15 +170,24 @@ def build_search_criteria(
 
     criteria = {
         "Parish": primary_query.resolved_parish_name(),
+        **({"Distance around parish": parish_distance} if parish_distance else {}),
         **({"Keywords": ", ".join(keywords)} if keywords else {}),
         **({"Major applications": "Yes"} if includes_major else {}),
         "Mode": mode,
         "Week": actual_week or primary_query.requested_week or "Latest available",
     }
     if len(ward_names) > 1:
-        criteria = {"Wards": ", ".join(ward_names), **criteria}
+        criteria = {
+            "Wards": ", ".join(ward_names),
+            **({"Distance around wards": ward_distance} if ward_distance else {}),
+            **criteria,
+        }
     else:
-        criteria = {"Ward": primary_query.resolved_ward_name(), **criteria}
+        criteria = {
+            "Ward": primary_query.resolved_ward_name(),
+            **({"Distance around ward": ward_distance} if ward_distance else {}),
+            **criteria,
+        }
     return criteria
 
 
@@ -173,13 +212,19 @@ def render_application_html(
                 right_label, right_value, right_class = fields[index + 1]
             else:
                 right_label, right_value, right_class = "", "", ""
+            left_label_class = (
+                " field-label--success" if left_label == "Included because" else ""
+            )
+            right_label_class = (
+                " field-label--success" if right_label == "Included because" else ""
+            )
 
             rows.append(
                 (
                     '<tr class="field-row">'
-                    f'<td class="field-label" valign="top">{escape(left_label)}</td>'
+                    f'<td class="field-label{left_label_class}" valign="top">{escape(left_label)}</td>'
                     f'<td class="field-value{left_class}" valign="top">{left_value}</td>'
-                    f'<td class="field-label" valign="top">{escape(right_label)}</td>'
+                    f'<td class="field-label{right_label_class}" valign="top">{escape(right_label)}</td>'
                     f'<td class="field-value{right_class}" valign="top">{right_value}</td>'
                     "</tr>"
                 )
@@ -198,6 +243,7 @@ def render_application_html(
 
         cards: list[str] = []
         for application in items:
+            included_because = included_because_text(application)
             fields = [
                 ("Ward", escape(application.ward or "Not provided"), ""),
                 (
@@ -247,6 +293,15 @@ def render_application_html(
                         major_application_css_class(application.is_major_application),
                     )
                     if application.is_major_application
+                    else None
+                ),
+                (
+                    (
+                        "Included because",
+                        escape(included_because),
+                        "",
+                    )
+                    if included_because
                     else None
                 ),
             ]
@@ -356,6 +411,7 @@ def render_application_html(
         ".field-row + .field-row td{border-top:6px solid var(--color-surface-primary);}"
         ".field-label{font-size:12px;font-weight:700;text-transform:uppercase;"
         "letter-spacing:0.05em;color:var(--color-text-tertiary);padding:9px 8px 9px 12px;width:120px;}"
+        ".field-label--success{color:var(--color-success);}"
         ".field-value{font-size:14px;word-break:break-word;padding:9px 12px 9px 10px;}"
         ".field-value--date-future{color:var(--color-success);font-weight:700;}"
         ".field-value--date-past{color:var(--color-danger);font-weight:700;}"

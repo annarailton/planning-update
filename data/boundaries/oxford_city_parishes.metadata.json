@@ -1,0 +1,17 @@
+{
+  "source_url": "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/Parishes_and_Non_Civil_Parished_Areas_December_2024_Boundaries_EW_BGC/FeatureServer/0/query",
+  "query_params": {
+    "where": "PARNCP24NM IN ('Blackbird Leys','Littlemore','Old Marston','Risinghurst and Sandhills')",
+    "outFields": "*",
+    "f": "geojson"
+  },
+  "fetched_at_utc": "2026-04-17T18:26:13.458503+00:00",
+  "feature_count": 4,
+  "parish_names": [
+    "Blackbird Leys",
+    "Littlemore",
+    "Old Marston",
+    "Risinghurst and Sandhills"
+  ],
+  "notes": "Oxford city parish boundaries filtered from the ONS Parishes and Non Civil Parished Areas (December 2024) Boundaries EW BGC dataset."
+}

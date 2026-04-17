@@ -216,3 +216,18 @@ def test_merge_applications_preserves_major_flag_from_any_scope(
 
     assert len(merged) == 1
     assert merged[0].is_major_application is True
+
+
+def test_merge_applications_preserves_specific_inclusion_reasons_from_multiple_wards(
+    application_factory: Callable[..., Application]
+) -> None:
+    """Merging should keep distinct ward-distance reasons from multiple queries."""
+    existing = [application_factory(inclusion_reason="Hinksey Park + 0.25 miles")]
+    new = [application_factory(inclusion_reason="Donnington + 0.25 miles")]
+
+    merged = merge_applications(existing, new)
+
+    assert len(merged) == 1
+    assert merged[0].inclusion_reason == (
+        "Hinksey Park + 0.25 miles; Donnington + 0.25 miles"
+    )

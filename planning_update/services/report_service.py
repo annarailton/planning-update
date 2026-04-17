@@ -38,11 +38,22 @@ def merge_applications(
         for keyword in application.keyword_matches or []:
             if keyword not in keyword_matches:
                 keyword_matches.append(keyword)
+        inclusion_reasons: list[str] = []
+        for inclusion_reason in [
+            current.inclusion_reason,
+            application.inclusion_reason,
+        ]:
+            if inclusion_reason is None:
+                continue
+            for reason in inclusion_reason.split("; "):
+                if reason not in inclusion_reasons:
+                    inclusion_reasons.append(reason)
         merged[application_ref] = Application.model_validate(
             current.model_dump()
             | application.model_dump(exclude_none=True)
             | {
                 "keyword_matches": keyword_matches or None,
+                "inclusion_reason": "; ".join(inclusion_reasons) or None,
                 "is_major_application": (
                     current.is_major_application or application.is_major_application
                 ),

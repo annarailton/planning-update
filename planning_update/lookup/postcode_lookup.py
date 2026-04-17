@@ -6,12 +6,15 @@ import csv
 import json
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from pyproj import Transformer
 from shapely.geometry import Point, shape
+from shapely.ops import transform
 
 from ..constants import BOUNDARIES_PATH, CODEPOINT_CSV_PATH, PARISH_BOUNDARIES_PATH
+from .location_lookup import normalize_name
 
 # Code-Point Open and the checked-in ward boundaries use different coordinate
 # systems, so postcode points need to be reprojected before we can compare them.
@@ -33,6 +36,7 @@ from ..constants import BOUNDARIES_PATH, CODEPOINT_CSV_PATH, PARISH_BOUNDARIES_P
 # - longitude, latitude out
 
 BNG_TO_WGS84 = Transformer.from_crs("EPSG:27700", "EPSG:4326", always_xy=True)
+WGS84_TO_BNG = Transformer.from_crs("EPSG:4326", "EPSG:27700", always_xy=True)
 
 
 @dataclass(frozen=True)
@@ -61,6 +65,7 @@ def normalize_postcode(postcode: str) -> str:
     return re.sub(r"\s+", "", postcode).upper()
 
 
+@lru_cache(maxsize=None)
 def load_ward_boundaries(path: Path = BOUNDARIES_PATH) -> list[tuple[str, object]]:
     """Load ward shapes from the checked-in Oxford GeoJSON file."""
     geojson = json.loads(path.read_text(encoding="utf-8"))
@@ -70,6 +75,7 @@ def load_ward_boundaries(path: Path = BOUNDARIES_PATH) -> list[tuple[str, object
     ]
 
 
+@lru_cache(maxsize=None)
 def load_parish_boundaries(
     path: Path = PARISH_BOUNDARIES_PATH,
 ) -> list[tuple[str, object]]:
@@ -79,6 +85,26 @@ def load_parish_boundaries(
         (feature["properties"]["PARNCP24NM"], shape(feature["geometry"]))
         for feature in geojson["features"]
     ]
+
+
+@lru_cache(maxsize=None)
+def load_ward_boundaries_bng(path: Path = BOUNDARIES_PATH) -> dict[str, object]:
+    """Load ward shapes transformed into British National Grid coordinates."""
+    return {
+        normalize_name(ward_name): transform(WGS84_TO_BNG.transform, ward_geometry)
+        for ward_name, ward_geometry in load_ward_boundaries(path)
+    }
+
+
+@lru_cache(maxsize=None)
+def load_parish_boundaries_bng(
+    path: Path = PARISH_BOUNDARIES_PATH,
+) -> dict[str, object]:
+    """Load parish shapes transformed into British National Grid coordinates."""
+    return {
+        normalize_name(parish_name): transform(WGS84_TO_BNG.transform, parish_geometry)
+        for parish_name, parish_geometry in load_parish_boundaries(path)
+    }
 
 
 def lookup_postcode_row(
@@ -108,7 +134,10 @@ def lookup_postcode_in_oxford_wards(
     boundaries_path: Path = BOUNDARIES_PATH,
     parish_boundaries_path: Path = PARISH_BOUNDARIES_PATH,
 ) -> PostcodeLookupResult:
-    """Resolve a postcode to lat/lon and the containing Oxford boundaries."""
+    """Resolve a postcode to lat/lon and the containing Oxford boundaries.
+
+    These can be a ward, a parish, both, or neither depending on where the postcode lies.
+    """
     normalized_postcode, easting, northing = lookup_postcode_row(
         postcode,
         codepoint_csv_path=codepoint_csv_path,
@@ -140,3 +169,55 @@ def lookup_postcode_in_oxford_wards(
         ward_name=ward_name,
         parish_name=parish_name,
     )
+
+
+def postcode_is_within_ward_distance(
+    postcode: str,
+    ward_name: str,
+    *,
+    distance_meters: float,
+    codepoint_csv_path: Path = CODEPOINT_CSV_PATH,
+    boundaries_path: Path = BOUNDARIES_PATH,
+) -> bool:
+    """Return whether a postcode lies inside or near an Oxford ward boundary."""
+    _, easting, northing = lookup_postcode_row(
+        postcode,
+        codepoint_csv_path=codepoint_csv_path,
+    )
+    ward_geometry = load_ward_boundaries_bng(boundaries_path).get(
+        normalize_name(ward_name)
+    )
+    if ward_geometry is None:
+        raise ValueError(f"Unknown ward boundary '{ward_name}'.")
+
+    postcode_point = Point(easting, northing)
+    if distance_meters <= 0:
+        return ward_geometry.covers(postcode_point)
+
+    return ward_geometry.buffer(distance_meters).covers(postcode_point)
+
+
+def postcode_is_within_parish_distance(
+    postcode: str,
+    parish_name: str,
+    *,
+    distance_meters: float,
+    codepoint_csv_path: Path = CODEPOINT_CSV_PATH,
+    boundaries_path: Path = PARISH_BOUNDARIES_PATH,
+) -> bool:
+    """Return whether a postcode lies inside or near an Oxford parish boundary."""
+    _, easting, northing = lookup_postcode_row(
+        postcode,
+        codepoint_csv_path=codepoint_csv_path,
+    )
+    parish_geometry = load_parish_boundaries_bng(boundaries_path).get(
+        normalize_name(parish_name)
+    )
+    if parish_geometry is None:
+        raise ValueError(f"Unknown parish boundary '{parish_name}'.")
+
+    postcode_point = Point(easting, northing)
+    if distance_meters <= 0:
+        return parish_geometry.covers(postcode_point)
+
+    return parish_geometry.buffer(distance_meters).covers(postcode_point)

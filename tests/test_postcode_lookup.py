@@ -6,6 +6,8 @@ from planning_update.constants import CODEPOINT_CSV_PATH
 from planning_update.lookup.postcode_lookup import (
     lookup_postcode_in_oxford_wards,
     normalize_postcode,
+    postcode_is_within_parish_distance,
+    postcode_is_within_ward_distance,
 )
 
 
@@ -117,3 +119,78 @@ def test_postcode_missing_from_codepoint_csv(
             postcode,
             codepoint_csv_path=CODEPOINT_CSV_PATH,
         )
+
+
+@pytest.mark.parametrize(
+    ("lookup_function", "postcode", "boundary_name", "distance_meters", "expected"),
+    [
+        pytest.param(
+            postcode_is_within_ward_distance,
+            "OX4 4NL",
+            "Littlemore",
+            0,
+            True,
+            id="ward-inside-boundary",
+        ),
+        pytest.param(
+            postcode_is_within_ward_distance,
+            "OX16 5QB",
+            "Littlemore",
+            402.336,
+            False,
+            id="ward-outside-boundary",
+        ),
+        pytest.param(
+            postcode_is_within_parish_distance,
+            "OX4 4NL",
+            "Littlemore",
+            0,
+            True,
+            id="parish-inside-boundary",
+        ),
+        pytest.param(
+            postcode_is_within_parish_distance,
+            "OX16 5QB",
+            "Littlemore",
+            402.336,
+            False,
+            id="parish-outside-boundary",
+        ),
+    ],
+)
+def test_postcode_is_within_boundary_distance(
+    lookup_function,
+    postcode: str,
+    boundary_name: str,
+    distance_meters: float,
+    expected: bool,
+) -> None:
+    """Ward/parish distance helpers should accept inside points and reject faraway ones."""
+    assert (
+        lookup_function(
+            postcode,
+            boundary_name,
+            distance_meters=distance_meters,
+        )
+        is expected
+    )
+
+
+def test_postcode_is_within_ward_distance_includes_postcode_just_outside_boundary() -> (
+    None
+):
+    """A nearby postcode in a different ward should match when it falls inside the buffer."""
+    result = lookup_postcode_in_oxford_wards(
+        "OX4 4HF",
+        codepoint_csv_path=CODEPOINT_CSV_PATH,
+    )
+
+    assert result.ward_name == "Rose Hill & Iffley"
+    assert (
+        postcode_is_within_ward_distance(
+            "OX4 4HF",
+            "Littlemore",
+            distance_meters=402.336,
+        )
+        is True
+    )

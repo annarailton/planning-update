@@ -50,18 +50,6 @@ jobs:
           python --version
           uv --version
 
-      - name: Write workflow config
-        env:
-          PLANNING_UPDATE_TOML: ${{ secrets.PLANNING_UPDATE_TOML }}
-        run: |
-          if [ -z "${PLANNING_UPDATE_TOML}" ]; then
-            echo "PLANNING_UPDATE_TOML secret is not set"
-            exit 1
-          fi
-          printf '%s\n' "${PLANNING_UPDATE_TOML}" > planning_update.toml
-          ls -l planning_update.toml
-          sed -n '1,120p' planning_update.toml | sed '/email_to/d'
-
       - name: Oxford connectivity diagnostics
         continue-on-error: true
         run: |

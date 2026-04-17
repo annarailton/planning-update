@@ -17,7 +17,6 @@ on:
 env:
   PYTHONUNBUFFERED: "1"
   WEEKLY_LIST_URL: "https://public.oxford.gov.uk/online-applications/search.do?action=weeklyList"
-  CONFIG_PATH: "planning_update.toml"
 
 jobs:
   send-update:
@@ -47,7 +46,7 @@ jobs:
           echo "runner.arch=${RUNNER_ARCH}"
           echo "github.ref=${GITHUB_REF}"
           echo "github.sha=${GITHUB_SHA}"
-          echo "config_path=${CONFIG_PATH}"
+          echo "config_path=planning_update.toml"
           python --version
           uv --version
 
@@ -59,9 +58,9 @@ jobs:
             echo "PLANNING_UPDATE_TOML secret is not set"
             exit 1
           fi
-          printf '%s\n' "${PLANNING_UPDATE_TOML}" > "${CONFIG_PATH}"
-          ls -l "${CONFIG_PATH}"
-          sed -n '1,120p' "${CONFIG_PATH}" | sed '/email_to/d'
+          printf '%s\n' "${PLANNING_UPDATE_TOML}" > planning_update.toml
+          ls -l planning_update.toml
+          sed -n '1,120p' planning_update.toml | sed '/email_to/d'
 
       - name: Oxford connectivity diagnostics
         continue-on-error: true
@@ -95,14 +94,14 @@ jobs:
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
-          uv run oxford-weekly --config "${CONFIG_PATH}" --debug 2>&1 | tee oxford-weekly.log
+          uv run oxford-weekly --config planning_update.toml --debug 2>&1 | tee oxford-weekly.log
 
       - name: Run planning update
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
         run: |
-          uv run oxford-weekly --config "${CONFIG_PATH}" 2>&1 | tee oxford-weekly.log
+          uv run oxford-weekly --config planning_update.toml 2>&1 | tee oxford-weekly.log
 
       - name: Upload diagnostics and HTML artifacts
         if: always()

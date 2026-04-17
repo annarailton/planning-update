@@ -6,10 +6,10 @@ from pathlib import Path
 import requests
 
 from ..constants import ENRICHMENT_REQUEST_DELAY_SECONDS, SCRAPER_CACHE_DIR
+from ..lookup.postcode_lookup import lookup_postcode_in_oxford_wards
 from ..models import Application, PlanningQuery
 from ..parsing.parser import (
     extract_applications,
-    extract_further_information,
     extract_important_dates,
     extract_major_application_refs,
     extract_pagination_urls,
@@ -18,7 +18,6 @@ from ..parsing.parser import (
 from .cache import load_cached_applications, save_cached_applications
 from .oxford_planning_client import (
     build_dates_tab_url,
-    build_further_information_tab_url,
     fetch_form,
     fetch_major_applications_page,
     fetch_page,
@@ -41,8 +40,8 @@ def enrich_application(
         query: Query mode used to decide which extra pages are required.
 
     Returns:
-        The application with summary-only fields, further information, and
-        important dates populated when available.
+        The application with summary-only fields and important dates populated
+        when available. Ward and parish are derived locally from postcode data.
     """
     request_count = 0
 
@@ -59,10 +58,16 @@ def enrich_application(
         page_html, _ = fetch_page(session, page_url)
         return page_html
 
-    further_information_html = fetch_enrichment_page(
-        build_further_information_tab_url(application.url)
-    )
-    ward, parish = extract_further_information(further_information_html)
+    ward = None
+    parish = None
+    if application.postcode is not None:
+        try:
+            postcode_lookup = lookup_postcode_in_oxford_wards(application.postcode)
+        except ValueError:
+            postcode_lookup = None
+        if postcode_lookup is not None:
+            ward = postcode_lookup.ward_name
+            parish = postcode_lookup.parish_name
 
     status = None
     decided = None

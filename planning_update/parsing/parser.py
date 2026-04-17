@@ -151,21 +151,6 @@ def extract_important_dates(html: str) -> tuple[str | None, str | None]:
     )
 
 
-def extract_further_information(html: str) -> tuple[str | None, str | None]:
-    """Extract ward and parish values from the further information tab.
-
-    Args:
-        html: Raw HTML returned by an application's further information tab.
-
-    Returns:
-        A tuple of ``(ward, parish)`` values when present.
-    """
-    soup = BeautifulSoup(html, "html.parser")
-    values = extract_summary_values(soup)
-
-    return values.get("ward"), values.get("parish")
-
-
 def extract_major_application_refs(html: str) -> list[ApplicationRef]:
     """Extract application references from Oxford's current major-applications page."""
     soup = BeautifulSoup(html, "html.parser")

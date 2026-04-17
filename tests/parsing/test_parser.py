@@ -6,7 +6,6 @@ from bs4 import BeautifulSoup
 
 from planning_update.parsing.parser import (
     extract_form_values,
-    extract_further_information,
     extract_major_application_refs,
     extract_search_result_cards,
     extract_summary_application,
@@ -91,21 +90,6 @@ def test_extract_summary_application_populates_decision_fields() -> None:
     assert application.status == "Awaiting decision"
     assert application.decision == "Refused"
     assert application.decided == date(2026, 3, 14)
-
-
-def test_extract_further_information_returns_ward_and_parish() -> None:
-    """Further information pages should provide ward and parish values."""
-    ward, parish = extract_further_information(
-        """
-        <table id="simpleDetailsTable">
-          <tr><th>Ward</th><td>Churchill Ward</td></tr>
-          <tr><th>Parish</th><td>Littlemore Parish Council</td></tr>
-        </table>
-        """
-    )
-
-    assert ward == "Churchill Ward"
-    assert parish == "Littlemore Parish Council"
 
 
 def test_extract_summary_values_supports_details_table_without_id() -> None:

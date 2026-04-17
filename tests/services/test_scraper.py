@@ -287,8 +287,12 @@ def test_enrich_application_skips_summary_page_for_validated_queries(
 
     monkeypatch.setattr("planning_update.services.scraper.fetch_page", fake_fetch_page)
     monkeypatch.setattr(
-        "planning_update.services.scraper.extract_further_information",
-        lambda html: ("Churchill Ward", None),
+        "planning_update.services.scraper.lookup_postcode_in_oxford_wards",
+        lambda postcode: type(
+            "LookupResult",
+            (),
+            {"ward_name": "Churchill Ward", "parish_name": None},
+        )(),
     )
     monkeypatch.setattr(
         "planning_update.services.scraper.extract_important_dates",
@@ -297,7 +301,7 @@ def test_enrich_application_skips_summary_page_for_validated_queries(
 
     enriched = enrich_application(
         requests.Session(),
-        application_factory(),
+        application_factory(address="169 Windmill Road Oxford Oxfordshire OX3 7DW"),
         query=PlanningQuery(status_mode="validated"),
     )
 
@@ -306,16 +310,13 @@ def test_enrich_application_skips_summary_page_for_validated_queries(
     assert enriched.status is None
     assert enriched.decision is None
     assert enriched.decided is None
-    assert requested_urls == [
-        "https://example.com/app?activeTab=details",
-        "https://example.com/app?activeTab=dates",
-    ]
+    assert requested_urls == ["https://example.com/app?activeTab=dates"]
 
 
 def test_enrich_application_pauses_between_enrichment_requests(
     application_factory: Callable[..., Application], monkeypatch
 ) -> None:
-    """Validated enrichment should pause before the second detail-page request."""
+    """Validated enrichment should not pause when only one request is needed."""
     requested_urls: list[str] = []
     sleep_calls: list[float] = []
 
@@ -325,8 +326,12 @@ def test_enrich_application_pauses_between_enrichment_requests(
 
     monkeypatch.setattr("planning_update.services.scraper.fetch_page", fake_fetch_page)
     monkeypatch.setattr(
-        "planning_update.services.scraper.extract_further_information",
-        lambda html: ("Churchill Ward", None),
+        "planning_update.services.scraper.lookup_postcode_in_oxford_wards",
+        lambda postcode: type(
+            "LookupResult",
+            (),
+            {"ward_name": "Churchill Ward", "parish_name": None},
+        )(),
     )
     monkeypatch.setattr(
         "planning_update.services.scraper.extract_important_dates",
@@ -338,15 +343,12 @@ def test_enrich_application_pauses_between_enrichment_requests(
 
     enrich_application(
         requests.Session(),
-        application_factory(),
+        application_factory(address="169 Windmill Road Oxford Oxfordshire OX3 7DW"),
         query=PlanningQuery(status_mode="validated"),
     )
 
-    assert requested_urls == [
-        "https://example.com/app?activeTab=details",
-        "https://example.com/app?activeTab=dates",
-    ]
-    assert sleep_calls == [0.5]
+    assert requested_urls == ["https://example.com/app?activeTab=dates"]
+    assert sleep_calls == []
 
 
 def test_enrich_application_skips_dates_page_for_decided_queries(
@@ -361,8 +363,12 @@ def test_enrich_application_skips_dates_page_for_decided_queries(
 
     monkeypatch.setattr("planning_update.services.scraper.fetch_page", fake_fetch_page)
     monkeypatch.setattr(
-        "planning_update.services.scraper.extract_further_information",
-        lambda html: ("Churchill Ward", None),
+        "planning_update.services.scraper.lookup_postcode_in_oxford_wards",
+        lambda postcode: type(
+            "LookupResult",
+            (),
+            {"ward_name": "Churchill Ward", "parish_name": None},
+        )(),
     )
     monkeypatch.setattr(
         "planning_update.services.scraper.extract_summary_fields",
@@ -371,7 +377,7 @@ def test_enrich_application_skips_dates_page_for_decided_queries(
 
     enriched = enrich_application(
         requests.Session(),
-        application_factory(),
+        application_factory(address="169 Windmill Road Oxford Oxfordshire OX3 7DW"),
         query=PlanningQuery(status_mode="decided"),
     )
 
@@ -380,7 +386,67 @@ def test_enrich_application_skips_dates_page_for_decided_queries(
     assert enriched.decision == "Approved"
     assert enriched.consultation_deadline is None
     assert enriched.determination_deadline is None
-    assert requested_urls == [
-        "https://example.com/app?activeTab=details",
-        "https://example.com/app",
-    ]
+    assert requested_urls == ["https://example.com/app"]
+
+
+def test_enrich_application_uses_postcode_lookup_for_ward_and_parish(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Enrichment should derive ward and parish locally from the application postcode."""
+    monkeypatch.setattr(
+        "planning_update.services.scraper.lookup_postcode_in_oxford_wards",
+        lambda postcode: type(
+            "LookupResult",
+            (),
+            {
+                "ward_name": "Blackbird Leys",
+                "parish_name": "Blackbird Leys",
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_important_dates",
+        lambda html: ("Mon 16 Mar 2026", "Mon 06 Apr 2026"),
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_page",
+        lambda session, page_url: ("<html></html>", page_url),
+    )
+
+    enriched = enrich_application(
+        requests.Session(),
+        application_factory(
+            address="Blackbird Leys Community Centre, Blackbird Leys Road, Oxford OX4 6HW"
+        ),
+        query=PlanningQuery(status_mode="validated"),
+    )
+
+    assert enriched.ward == "Blackbird Leys"
+    assert enriched.parish == "Blackbird Leys"
+
+
+def test_enrich_application_leaves_ward_and_parish_empty_when_postcode_lookup_fails(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Enrichment should tolerate postcodes missing from the local lookup data."""
+    monkeypatch.setattr(
+        "planning_update.services.scraper.lookup_postcode_in_oxford_wards",
+        lambda postcode: (_ for _ in ()).throw(ValueError("missing postcode")),
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_important_dates",
+        lambda html: ("Mon 16 Mar 2026", "Mon 06 Apr 2026"),
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_page",
+        lambda session, page_url: ("<html></html>", page_url),
+    )
+
+    enriched = enrich_application(
+        requests.Session(),
+        application_factory(address="1 Test Street, Oxford OX9 9ZZ"),
+        query=PlanningQuery(status_mode="validated"),
+    )
+
+    assert enriched.ward is None
+    assert enriched.parish is None

@@ -66,6 +66,13 @@ def test_lookup_postcode_in_oxford_wards_returns_matching_ward(
     )
 
     assert result.ward_name == expected_ward
+    assert result.parish_name in {
+        None,
+        "Blackbird Leys",
+        "Littlemore",
+        "Old Marston",
+        "Risinghurst and Sandhills",
+    }
 
 
 @pytest.mark.parametrize(
@@ -86,6 +93,7 @@ def test_lookup_postcode_in_oxford_wards_reports_outside_oxford(
     )
 
     assert result.ward_name is None
+    assert result.parish_name is None
 
 
 @pytest.mark.parametrize(

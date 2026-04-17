@@ -197,11 +197,3 @@ def build_dates_tab_url(application_url: str) -> str:
     query_params = parse_qs(parsed_url.query)
     query_params["activeTab"] = ["dates"]
     return urlunparse(parsed_url._replace(query=urlencode(query_params, doseq=True)))
-
-
-def build_further_information_tab_url(application_url: str) -> str:
-    """Build the further-information-tab URL for a planning application."""
-    parsed_url = urlparse(application_url)
-    query_params = parse_qs(parsed_url.query)
-    query_params["activeTab"] = ["details"]
-    return urlunparse(parsed_url._replace(query=urlencode(query_params, doseq=True)))

@@ -11,7 +11,7 @@ from pathlib import Path
 from pyproj import Transformer
 from shapely.geometry import Point, shape
 
-from ..constants import BOUNDARIES_PATH, CODEPOINT_CSV_PATH
+from ..constants import BOUNDARIES_PATH, CODEPOINT_CSV_PATH, PARISH_BOUNDARIES_PATH
 
 # Code-Point Open and the checked-in ward boundaries use different coordinate
 # systems, so postcode points need to be reprojected before we can compare them.
@@ -37,7 +37,7 @@ BNG_TO_WGS84 = Transformer.from_crs("EPSG:27700", "EPSG:4326", always_xy=True)
 
 @dataclass(frozen=True)
 class PostcodeLookupResult:
-    """Resolved postcode coordinates and containing Oxford ward."""
+    """Resolved postcode coordinates and containing Oxford boundaries."""
 
     postcode: str
     normalized_postcode: str
@@ -46,6 +46,7 @@ class PostcodeLookupResult:
     easting: int
     northing: int
     ward_name: str | None
+    parish_name: str | None
 
 
 def normalize_postcode(postcode: str) -> str:
@@ -65,6 +66,17 @@ def load_ward_boundaries(path: Path = BOUNDARIES_PATH) -> list[tuple[str, object
     geojson = json.loads(path.read_text(encoding="utf-8"))
     return [
         (feature["properties"]["WardName"], shape(feature["geometry"]))
+        for feature in geojson["features"]
+    ]
+
+
+def load_parish_boundaries(
+    path: Path = PARISH_BOUNDARIES_PATH,
+) -> list[tuple[str, object]]:
+    """Load parish shapes from the checked-in Oxford GeoJSON file."""
+    geojson = json.loads(path.read_text(encoding="utf-8"))
+    return [
+        (feature["properties"]["PARNCP24NM"], shape(feature["geometry"]))
         for feature in geojson["features"]
     ]
 
@@ -94,8 +106,9 @@ def lookup_postcode_in_oxford_wards(
     postcode: str,
     codepoint_csv_path: Path = CODEPOINT_CSV_PATH,
     boundaries_path: Path = BOUNDARIES_PATH,
+    parish_boundaries_path: Path = PARISH_BOUNDARIES_PATH,
 ) -> PostcodeLookupResult:
-    """Resolve a postcode to lat/lon and the containing Oxford ward, if any."""
+    """Resolve a postcode to lat/lon and the containing Oxford boundaries."""
     normalized_postcode, easting, northing = lookup_postcode_row(
         postcode,
         codepoint_csv_path=codepoint_csv_path,
@@ -109,6 +122,14 @@ def lookup_postcode_in_oxford_wards(
             ward_name = candidate_ward_name
             break
 
+    parish_name = None
+    for candidate_parish_name, parish_geometry in load_parish_boundaries(
+        parish_boundaries_path
+    ):
+        if parish_geometry.covers(point):
+            parish_name = candidate_parish_name
+            break
+
     return PostcodeLookupResult(
         postcode=postcode,
         normalized_postcode=normalized_postcode,
@@ -117,4 +138,5 @@ def lookup_postcode_in_oxford_wards(
         easting=easting,
         northing=northing,
         ward_name=ward_name,
+        parish_name=parish_name,
     )

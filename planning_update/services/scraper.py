@@ -6,7 +6,11 @@ from pathlib import Path
 import requests
 
 from ..constants import ENRICHMENT_REQUEST_DELAY_SECONDS, SCRAPER_CACHE_DIR
-from ..lookup.postcode_lookup import lookup_postcode_in_oxford_wards
+from ..lookup.postcode_lookup import (
+    lookup_postcode_in_oxford_wards,
+    postcode_is_within_parish_distance,
+    postcode_is_within_ward_distance,
+)
 from ..models import Application, PlanningQuery
 from ..parsing.parser import (
     extract_applications,
@@ -161,6 +165,94 @@ def filter_applications_by_major(
     )
 
 
+def filter_applications_by_ward_distance(
+    applications: list[Application], *, query: PlanningQuery
+) -> list[Application]:
+    """Filter applications to those inside or near selected ward/parish boundaries."""
+    if (
+        not query.uses_distance_around_ward()
+        and not query.uses_distance_around_parish()
+    ):
+        return applications
+    if query.ward_name is None and query.parish_name is None:
+        return applications
+
+    matching_applications: list[Application] = []
+    target_ward_name = (
+        query.resolved_ward_name()
+        if query.ward_name is not None and query.uses_distance_around_ward()
+        else None
+    )
+    target_parish_name = (
+        query.resolved_parish_name()
+        if query.parish_name is not None and query.uses_distance_around_parish()
+        else None
+    )
+    target_ward_label = (
+        query.ward_name
+        if query.ward_name is not None and query.uses_distance_around_ward()
+        else None
+    )
+    target_parish_label = (
+        query.parish_name
+        if query.parish_name is not None and query.uses_distance_around_parish()
+        else None
+    )
+    ward_distance_label = (
+        query.distance_around_ward_label if query.uses_distance_around_ward() else None
+    )
+    parish_distance_label = (
+        query.distance_around_parish_label
+        if query.uses_distance_around_parish()
+        else None
+    )
+    for application in applications:
+        if application.postcode is None:
+            continue
+        try:
+            matches_ward = True
+            if target_ward_name is not None:
+                matches_ward = postcode_is_within_ward_distance(
+                    application.postcode,
+                    target_ward_name,
+                    distance_meters=query.distance_around_ward_meters,
+                )
+
+            matches_parish = True
+            if target_parish_name is not None:
+                matches_parish = postcode_is_within_parish_distance(
+                    application.postcode,
+                    target_parish_name,
+                    distance_meters=query.distance_around_parish_meters,
+                )
+
+            if matches_ward and matches_parish:
+                inclusion_reasons: list[str] = []
+                if target_ward_label is not None and ward_distance_label is not None:
+                    inclusion_reasons.append(
+                        f"{target_ward_label} + {ward_distance_label}"
+                    )
+                if (
+                    target_parish_label is not None
+                    and parish_distance_label is not None
+                ):
+                    inclusion_reasons.append(
+                        f"{target_parish_label} + {parish_distance_label}"
+                    )
+                matching_applications.append(
+                    Application.model_validate(
+                        application.model_dump()
+                        | {
+                            "inclusion_reason": ", ".join(inclusion_reasons) or None,
+                        }
+                    )
+                )
+        except ValueError:
+            continue
+
+    return matching_applications
+
+
 def collect_result_applications(
     session: requests.Session, *, query: PlanningQuery
 ) -> tuple[list[Application], str]:
@@ -196,6 +288,7 @@ def fetch_latest_applications(query: PlanningQuery) -> tuple[list[Application], 
     applications, week = collect_result_applications(session, query=query)
     applications = filter_applications_by_keywords(applications, query=query)
     applications = filter_applications_by_major(session, applications, query=query)
+    applications = filter_applications_by_ward_distance(applications, query=query)
     return (
         [
             enrich_application(session, application, query=query)

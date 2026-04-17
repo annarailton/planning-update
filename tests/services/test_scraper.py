@@ -14,6 +14,7 @@ from planning_update.services.scraper import (
     filter_applications_by_keywords,
     filter_applications_by_major,
     filter_applications_by_major_refs,
+    filter_applications_by_ward_distance,
     load_cached_applications,
     save_cached_applications,
 )
@@ -97,6 +98,70 @@ def test_filter_applications_by_major_returns_original_list_when_disabled(
     )
 
     assert filtered == applications
+
+
+def test_filter_applications_by_ward_distance_keeps_only_matching_postcodes(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Ward-distance filtering should keep only postcodes inside the ward buffer."""
+    applications = [
+        application_factory(
+            address="South Oxford Community Centre Lake Street Oxford OX1 4RP"
+        ),
+        application_factory(
+            application_ref={"value": "26/00282/FUL"},
+            address="Banbury Town Hall Bridge Street Banbury OX16 5QB",
+        ),
+    ]
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.postcode_is_within_ward_distance",
+        lambda postcode, ward_name, *, distance_meters: postcode == "OX1 4RP",
+    )
+
+    filtered = filter_applications_by_ward_distance(
+        applications,
+        query=PlanningQuery(
+            ward_name="Hinksey Park",
+            distance_around_ward_meters=402.336,
+            distance_around_ward_label="0.25 miles",
+        ),
+    )
+
+    assert [application.postcode for application in filtered] == ["OX1 4RP"]
+    assert filtered[0].inclusion_reason == "Hinksey Park + 0.25 miles"
+
+
+def test_filter_applications_by_ward_distance_keeps_only_matching_parish_postcodes(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Distance filtering should also work against parish boundaries."""
+    applications = [
+        application_factory(
+            address="Littlemore Community Centre Giles Road Oxford OX4 4NL"
+        ),
+        application_factory(
+            application_ref={"value": "26/00282/FUL"},
+            address="Banbury Town Hall Bridge Street Banbury OX16 5QB",
+        ),
+    ]
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.postcode_is_within_parish_distance",
+        lambda postcode, parish_name, *, distance_meters: postcode == "OX4 4NL",
+    )
+
+    filtered = filter_applications_by_ward_distance(
+        applications,
+        query=PlanningQuery(
+            parish_name="Littlemore",
+            distance_around_parish_meters=402.336,
+            distance_around_parish_label="0.25 miles",
+        ),
+    )
+
+    assert [application.postcode for application in filtered] == ["OX4 4NL"]
+    assert filtered[0].inclusion_reason == "Littlemore + 0.25 miles"
 
 
 def test_fetch_latest_applications_does_not_hit_major_page_when_disabled(

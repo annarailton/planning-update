@@ -15,3 +15,17 @@ then test which checked-in Oxford ward polygon contains it.
 
 The checked-in [ox.csv](/Users/annarailton/projects/planning-update/data/code_point_postcodes/ox.csv)
 is the Oxford postcode area CSV from the standard Code-Point Open download.
+
+## File format
+
+Rows look like:
+
+```csv
+"OX1 1AA",10,450673,205980,"E92000001","E19000002","E18000009","E10000025","E07000178","E05013111"
+```
+
+For the current lookup script, the important columns are:
+
+- column 1: postcode
+- column 3: easting
+- column 4: northing

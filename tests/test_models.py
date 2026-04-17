@@ -52,6 +52,7 @@ def test_application_parses_dates_to_datetimes() -> None:
     assert application.received == date(2026, 3, 12)
     assert application.validated == date(2026, 3, 13)
     assert application.decided == date(2026, 3, 14)
+    assert application.postcode is None
 
 
 def test_application_model_validate_parses_updated_date_strings() -> None:
@@ -70,6 +71,39 @@ def test_application_model_validate_parses_updated_date_strings() -> None:
     )
 
     assert updated.decided == date(2026, 3, 14)
+
+
+def test_application_populates_postcode_from_address() -> None:
+    """Application should derive postcode from the provided address."""
+    application = Application(
+        application_ref=ApplicationRef(value="26/00281/FUL"),
+        proposal="Test proposal",
+        url="https://example.com",
+        address="East Oxford Community Centre, Princes Street, Oxford OX4 1DD",
+        received="Thu 12 Mar 2026",
+        validated="Fri 13 Mar 2026",
+    )
+
+    assert application.postcode == "OX4 1DD"
+
+
+def test_application_model_validate_updates_postcode_when_address_changes() -> None:
+    """Application.model_validate should refresh postcode from an updated address."""
+    application = Application(
+        application_ref=ApplicationRef(value="26/00281/FUL"),
+        proposal="Test proposal",
+        url="https://example.com",
+        address="1 Test Street",
+        received="Thu 12 Mar 2026",
+        validated="Fri 13 Mar 2026",
+    )
+
+    updated = Application.model_validate(
+        application.model_dump()
+        | {"address": "Oxford Town Hall, St Aldate's, Oxford OX1 1BX"}
+    )
+
+    assert updated.postcode == "OX1 1BX"
 
 
 @pytest.mark.parametrize(
@@ -97,6 +131,57 @@ def test_validate_application_date_rejects_empty_strings() -> None:
     """Application date validation should reject empty required date values."""
     with pytest.raises(ValueError, match="Required application date cannot be empty"):
         Application.validate_application_date("")
+
+
+@pytest.mark.parametrize(
+    ("address", "expected_postcode"),
+    [
+        ("Oxford Town Hall, St Aldate's, Oxford OX1 1BX", "OX1 1BX"),
+        ("East Oxford Community Centre, Princes Street, Oxford OX4 1DD", "OX4 1DD"),
+        ("South Oxford Community Centre Lake Street Oxford ox1 4rp", "OX1 4RP"),
+        ("Land At Rear Of 12 Test Street Oxford", None),
+    ],
+)
+def test_application_postcode_from_address_extracts_expected_postcode(
+    address: str,
+    expected_postcode: str | None,
+) -> None:
+    """Application postcode extraction should return a normalized postcode."""
+    assert Application.postcode_from_address(address) == expected_postcode
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_match"),
+    [
+        ("OX3 7DW", "OX3 7DW"),
+        ("ox1 4rp", "ox1 4rp"),
+        ("Visit East Oxford Community Centre, OX4 1DD", "OX4 1DD"),
+        ("Reference postcode: OX44NL", "OX44NL"),
+    ],
+)
+def test_application_postcode_regex_matches_valid_uk_postcodes(
+    text: str,
+    expected_match: str,
+) -> None:
+    """The postcode regex should find valid postcode-shaped text."""
+    match = Application.UK_POSTCODE_RE.search(text)
+
+    assert match is not None
+    assert match.group(1) == expected_match
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "1 Test Street, Oxford",
+        "OX1",
+        "OX1 44A",
+        "Not a postcode: 12345",
+    ],
+)
+def test_application_postcode_regex_rejects_invalid_postcode_text(text: str) -> None:
+    """The postcode regex should ignore text that is not postcode-shaped."""
+    assert Application.UK_POSTCODE_RE.search(text) is None
 
 
 def test_planning_query_build_search_payload_uses_resolved_codes() -> None:

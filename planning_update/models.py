@@ -4,7 +4,7 @@ import re
 from datetime import date, datetime
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .lookup.location_lookup import (
     PARISH_CODE_TO_NAME,
@@ -15,7 +15,26 @@ from .lookup.location_lookup import (
 
 ApplicationStatusMode = Literal["validated", "decided"]
 CliStatusMode = Literal["validated", "decided", "both"]
+# Oxford planning references use a two-digit year, a five-digit sequence, and a
+# short uppercase suffix such as FUL or LBC, all separated by forward slashes,
+# for example "26/00281/FUL"
 APPLICATION_ID_RE = re.compile(r"\b\d{2}/\d{5}/[A-Z0-9]+\b")
+# Capture a likely UK postcode in either spaced or compact form so we can pull
+# it back out of the free-text planning-application address field.#
+# We need this for ward / parish lookups later
+#
+# The pattern allows:
+# - one or two leading letters
+# - one digit
+# - an optional outward-code suffix character (this is a real postcode thing - look it up!)
+# - optional whitespace
+# - one digit plus two trailing letters
+#
+# That covers common postcode shapes such as `OX1 4RP`, `OX14RP`, and `W1A 0AX`.
+UK_POSTCODE_RE = re.compile(
+    r"\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b",
+    re.IGNORECASE,
+)
 
 
 class ApplicationRef(BaseModel):
@@ -49,10 +68,13 @@ class Application(BaseModel):
     complexity than value.
     """
 
+    UK_POSTCODE_RE: ClassVar[re.Pattern[str]] = UK_POSTCODE_RE
+
     application_ref: ApplicationRef
     proposal: str
     url: str
     address: str
+    postcode: str | None = None
     received: date
     validated: date
     # These are found from the application page itself
@@ -101,6 +123,27 @@ class Application(BaseModel):
             return datetime.strptime(v, "%a %d %b %Y").date()
         except ValueError:
             return date.fromisoformat(v)
+
+    @model_validator(mode="after")
+    def populate_postcode_from_address(self) -> "Application":
+        """Populate the derived postcode field from the address."""
+        self.postcode = self.postcode_from_address(self.address)
+        return self
+
+    @classmethod
+    def postcode_from_address(cls, address: str) -> str | None:
+        """Extract a normalized UK postcode from an address string.
+
+        Returns the postcode in standard uppercase form with a single space
+        before the final three characters, or ``None`` if the address does not
+        contain a recognizable postcode.
+        """
+        match = cls.UK_POSTCODE_RE.search(address)
+        if match is None:
+            return None
+
+        compact_postcode = re.sub(r"\s+", "", match.group(1)).upper()
+        return f"{compact_postcode[:-3]} {compact_postcode[-3:]}"
 
 
 class PlanningQuery(BaseModel):

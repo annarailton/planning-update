@@ -107,6 +107,16 @@ def resolve_cli_options(
         cli_inputs.keywords if cli_inputs.keywords is not None else cli_config.keywords
     )
     major = cli_inputs.major if cli_inputs.major is not None else cli_config.major
+    distance_around_ward_meters = cli_config.distance_around_ward
+    distance_around_parish_meters = cli_config.distance_around_parish
+    # These are for the final report card so it's what the user specified in the config, not the normalized distance value.
+    distance_around_ward_label = cli_config.distance_around_ward_label
+    distance_around_parish_label = cli_config.distance_around_parish_label
+
+    if distance_around_ward_meters > 0 and not ward_names:
+        raise ValueError("distance_around_ward requires at least one ward.")
+    if distance_around_parish_meters > 0 and parish_name is None:
+        raise ValueError("distance_around_parish requires a parish.")
 
     query_variants: list[dict[str, object]] = []
     if (
@@ -123,6 +133,10 @@ def resolve_cli_options(
                     "ward_name": ward_name,
                     "parish_name": parish_name,
                     "requested_week": requested_week,
+                    "distance_around_ward_meters": distance_around_ward_meters,
+                    "distance_around_parish_meters": distance_around_parish_meters,
+                    "distance_around_ward_label": distance_around_ward_label,
+                    "distance_around_parish_label": distance_around_parish_label,
                 }
             )
     if keywords:

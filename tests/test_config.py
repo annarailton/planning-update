@@ -26,6 +26,8 @@ def test_load_cli_config_reads_top_level_values(tmp_path: Path) -> None:
                 'week = "30 Mar 2026"',
                 'keywords = "photovoltaics, heat pump, ASHP, PV"',
                 "major = true",
+                'distance_around_ward = "0.25 miles"',
+                'distance_around_parish = "0.4 km"',
                 'email_to = "anna@example.com"',
             ]
         ),
@@ -41,6 +43,10 @@ def test_load_cli_config_reads_top_level_values(tmp_path: Path) -> None:
     assert config.week == "30 Mar 2026"
     assert config.keywords == "photovoltaics, heat pump, ASHP, PV"
     assert config.major is True
+    assert config.distance_around_ward == pytest.approx(402.336, abs=0.001)
+    assert config.distance_around_parish == pytest.approx(400.0, abs=0.001)
+    assert config.distance_around_ward_label == "0.25 miles"
+    assert config.distance_around_parish_label == "0.4 km"
     assert config.email_to == "anna@example.com"
 
 
@@ -97,6 +103,64 @@ def test_parse_keywords_accepts_lists() -> None:
 def test_parse_keywords_returns_empty_list_for_none() -> None:
     """Keyword parsing should treat missing values as empty."""
     assert parse_keywords(None) == []
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected_meters"),
+    [
+        ("0.25 miles", pytest.approx(402.336, abs=0.001)),
+        ("0.4 km", pytest.approx(400.0, abs=0.001)),
+        ("250 meters", pytest.approx(250.0, abs=0.001)),
+        ("250 metre", pytest.approx(250.0, abs=0.001)),
+        ("1 mile", pytest.approx(1609.344, abs=0.001)),
+        ("1 mi", pytest.approx(1609.344, abs=0.001)),
+        ("1 kilometre", pytest.approx(1000.0, abs=0.001)),
+        ("1 kilometer", pytest.approx(1000.0, abs=0.001)),
+        (" 0.25   miles ", pytest.approx(402.336, abs=0.001)),
+        ("0", 0.0),
+        (0, 0.0),
+    ],
+)
+def test_parse_distance_around_ward_converts_to_meters(
+    raw_value: str | int,
+    expected_meters: float,
+) -> None:
+    """Distance-around-ward config values should normalize to meters."""
+    assert CliConfig.parse_distance_around_X(raw_value) == expected_meters
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected_error", "expected_match"),
+    [
+        (1, TypeError, "must include units"),
+        ("5 seconds", ValueError, "must include length units"),
+        ("0.25", ValueError, "must include length units"),
+    ],
+)
+def test_parse_distance_around_ward_rejects_invalid_unit_inputs(
+    raw_value: int | str,
+    expected_error: type[Exception],
+    expected_match: str,
+) -> None:
+    """Distance-around-ward values should fail clearly for invalid unit inputs."""
+    with pytest.raises(expected_error, match=expected_match):
+        CliConfig.parse_distance_around_X(raw_value)
+
+
+@pytest.mark.parametrize(
+    "raw_value",
+    [
+        "five miles",
+        "abc",
+        "miles",
+    ],
+)
+def test_parse_distance_around_ward_rejects_invalid_distance_strings(
+    raw_value: str,
+) -> None:
+    """Malformed distance strings should fail clearly."""
+    with pytest.raises(ValueError, match="must be a valid distance"):
+        CliConfig.parse_distance_around_X(raw_value)
 
 
 def test_parse_wards_accepts_strings_and_lists() -> None:
@@ -169,6 +233,63 @@ def test_resolve_cli_options_builds_keyword_and_ward_queries_for_both_statuses()
             status_mode="decided",
         ),
     ]
+
+
+def test_resolve_cli_options_applies_distance_around_ward_to_location_queries() -> None:
+    """Ward-distance config should be carried into location-filtered queries."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(status="validated", ward="Hinksey Park"),
+        cli_config=CliConfig(distance_around_ward="0.25 miles"),
+    )
+
+    assert len(options.queries) == 1
+    assert options.queries[0].ward_name == "Hinksey Park"
+    assert options.queries[0].status_mode == "validated"
+    assert options.queries[0].distance_around_ward_meters == pytest.approx(
+        402.336, abs=0.001
+    )
+    assert options.queries[0].distance_around_ward_label == "0.25 miles"
+    assert options.queries[0].distance_around_parish_meters == 0
+
+
+def test_resolve_cli_options_rejects_distance_without_ward() -> None:
+    """Ward distance config should require at least one ward filter."""
+    with pytest.raises(
+        ValueError, match="distance_around_ward requires at least one ward"
+    ):
+        resolve_cli_options(
+            cli_inputs=CliInputs(status="validated"),
+            cli_config=CliConfig(distance_around_ward="0.25 miles"),
+        )
+
+
+def test_resolve_cli_options_applies_distance_around_ward_to_parish_queries() -> None:
+    """Parish distance config should work for parish-filtered queries."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(status="validated"),
+        cli_config=CliConfig(
+            parish="Littlemore",
+            distance_around_parish="0.25 miles",
+        ),
+    )
+
+    assert len(options.queries) == 1
+    assert options.queries[0].parish_name == "Littlemore"
+    assert options.queries[0].status_mode == "validated"
+    assert options.queries[0].distance_around_parish_meters == pytest.approx(
+        402.336, abs=0.001
+    )
+    assert options.queries[0].distance_around_parish_label == "0.25 miles"
+    assert options.queries[0].distance_around_ward_meters == 0
+
+
+def test_resolve_cli_options_rejects_parish_distance_without_parish() -> None:
+    """Parish distance config should require a parish filter."""
+    with pytest.raises(ValueError, match="distance_around_parish requires a parish"):
+        resolve_cli_options(
+            cli_inputs=CliInputs(status="validated"),
+            cli_config=CliConfig(distance_around_parish="0.25 miles"),
+        )
 
 
 def test_resolve_cli_options_expands_multiple_wards_from_cli() -> None:

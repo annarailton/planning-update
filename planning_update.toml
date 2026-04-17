@@ -1,4 +1,5 @@
 ward = "Hinksey Park"
 status_mode = "both"
+distance_around_ward = "0.15 miles"
 keywords = "photovoltaics, heat pump, ASHP, PV, solar panels"
 email_to = "cllrarailton@oxford.gov.uk"

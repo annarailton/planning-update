@@ -41,3 +41,6 @@ select = ["I", "D"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.pytest.ini_options]
+addopts = "--doctest-modules"

@@ -157,6 +157,7 @@ def fetch_results_page(
         data=payload,
         timeout=DEFAULT_TIMEOUT_SECONDS,
     )
+    logger.info("Fetched weekly list results: %s", summarize_response(response))
     return response.text, response.url
 
 
@@ -169,6 +170,7 @@ def fetch_page(session: requests.Session, page_url: str) -> tuple[str, str]:
         url=page_url,
         timeout=DEFAULT_TIMEOUT_SECONDS,
     )
+    logger.info("Fetched page %s: %s", page_url, summarize_response(response))
     return response.text, response.url
 
 
@@ -180,6 +182,7 @@ def fetch_major_applications_page(session: requests.Session) -> str:
         url=MAJOR_APPLICATIONS_URL,
         timeout=DEFAULT_TIMEOUT_SECONDS,
     )
+    logger.info("Fetched major applications page: %s", summarize_response(response))
     return response.text
 
 

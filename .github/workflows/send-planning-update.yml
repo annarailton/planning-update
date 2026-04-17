@@ -1,6 +1,9 @@
 name: Send Planning Update
 
 on:
+  push:
+    branches:
+      - annarailton/failing-ci
   workflow_dispatch:
     inputs:
       dry_run:

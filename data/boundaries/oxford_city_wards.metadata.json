@@ -1,0 +1,11 @@
+{
+  "source_url": "https://services-eu1.arcgis.com/tnmBQqa3VPEwVeKN/arcgis/rest/services/Oxford_Wards_2023/FeatureServer/0/query",
+  "query_params": {
+    "where": "1=1",
+    "outFields": "*",
+    "f": "geojson"
+  },
+  "fetched_at_utc": "2026-04-17T15:48:36.003456+00:00",
+  "feature_count": 24,
+  "notes": "Current Oxford city ward boundaries fetched from Oxford City Council's ArcGIS FeatureServer endpoint."
+}

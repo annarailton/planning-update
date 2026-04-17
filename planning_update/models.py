@@ -4,6 +4,7 @@ import re
 from datetime import date, datetime
 from typing import ClassVar, Literal
 
+from pint import UndefinedUnitError, UnitRegistry
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .lookup.location_lookup import (
@@ -35,6 +36,16 @@ UK_POSTCODE_RE = re.compile(
     r"\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b",
     re.IGNORECASE,
 )
+# We use this to require string distances to start with an explicit numeric
+# value so inputs like "miles" are rejected instead of being interpreted by
+# pint as 1 mile.
+#
+# Match a leading signed or unsigned decimal number:
+# - optional `+` or `-`
+# - digits with an optional fractional part, such as `1` or `1.5`
+# - or a leading-decimal form such as `.5`
+LEADING_NUMBER_RE = re.compile(r"^[+-]?(\d+(\.\d*)?|\.\d+)")
+UNIT_REGISTRY = UnitRegistry()
 
 
 class ApplicationRef(BaseModel):
@@ -88,6 +99,7 @@ class Application(BaseModel):
     decision: str | None = None
     keyword_matches: list[str] | None = None
     is_major_application: bool = False
+    inclusion_reason: str | None = None
 
     @field_validator(
         "received",
@@ -155,6 +167,10 @@ class PlanningQuery(BaseModel):
     ward_name: str | None = None
     parish_name: str | None = None
     requested_week: str | None = None
+    distance_around_ward_meters: float = 0.0
+    distance_around_parish_meters: float = 0.0
+    distance_around_ward_label: str | None = None
+    distance_around_parish_label: str | None = None
     keywords: list[str] = Field(default_factory=list)
     major: bool = False
     status_mode: ApplicationStatusMode = "validated"
@@ -167,6 +183,14 @@ class PlanningQuery(BaseModel):
         """Return whether this query should filter to current major applications."""
         return self.major
 
+    def uses_distance_around_ward(self) -> bool:
+        """Return whether this query should include a ward-distance buffer."""
+        return self.distance_around_ward_meters > 0
+
+    def uses_distance_around_parish(self) -> bool:
+        """Return whether this query should include a parish-distance buffer."""
+        return self.distance_around_parish_meters > 0
+
     def resolve_ward_code(self) -> str:
         """Resolve the configured ward name to an Oxford ward code.
 
@@ -174,6 +198,10 @@ class PlanningQuery(BaseModel):
             The resolved ward code, or an empty string for all wards.
         """
         if self.uses_keyword_matching() or self.uses_major_matching():
+            return ""
+        # This is because distance-based queries need the full results to check distances against
+        # so they can't be pre-filtered by ward/parish.
+        if self.uses_distance_around_ward():
             return ""
         if self.ward_name is None:
             return ""
@@ -187,6 +215,10 @@ class PlanningQuery(BaseModel):
         """
         if self.uses_keyword_matching() or self.uses_major_matching():
             return ""
+        # This is because distance-based queries need the full results to check distances against
+        # so they can't be pre-filtered by ward/parish.
+        if self.uses_distance_around_parish():
+            return ""
         if self.parish_name is None:
             return ""
         return resolve_parish_code(self.parish_name)
@@ -197,11 +229,9 @@ class PlanningQuery(BaseModel):
         Returns:
             The canonical ward name, or ``All wards`` when no ward is set.
         """
-        if self.uses_keyword_matching() or self.uses_major_matching():
+        if self.ward_name is None:
             return "All wards"
-        ward_code = self.resolve_ward_code()
-        if not ward_code:
-            return "All wards"
+        ward_code = resolve_ward_code(self.ward_name)
         return WARD_CODE_TO_NAME[ward_code]
 
     def resolved_parish_name(self) -> str:
@@ -210,11 +240,9 @@ class PlanningQuery(BaseModel):
         Returns:
             The canonical parish name, or ``All parishes`` when no parish is set.
         """
-        if self.uses_keyword_matching() or self.uses_major_matching():
+        if self.parish_name is None:
             return "All parishes"
-        parish_code = self.resolve_parish_code()
-        if not parish_code:
-            return "All parishes"
+        parish_code = resolve_parish_code(self.parish_name)
         return PARISH_CODE_TO_NAME[parish_code]
 
     def matching_keywords(self, proposal: str) -> list[str]:
@@ -260,6 +288,9 @@ class PlanningQuery(BaseModel):
 class CliConfig(BaseModel):
     """Optional CLI defaults loaded from TOML."""
 
+    LEADING_NUMBER_RE: ClassVar[re.Pattern[str]] = LEADING_NUMBER_RE
+    UNIT_REGISTRY: ClassVar[UnitRegistry] = UNIT_REGISTRY
+
     debug: bool | None = None
     ward: str | list[str] | None = None
     parish: str | None = None
@@ -267,7 +298,106 @@ class CliConfig(BaseModel):
     week: str | None = None
     keywords: str | list[str] | None = None
     major: bool | None = None
+    distance_around_ward: float = 0.0
+    distance_around_parish: float = 0.0
+    distance_around_ward_label: str | None = None
+    distance_around_parish_label: str | None = None
     email_to: str | None = None
+
+    @staticmethod
+    def normalize_distance_label(value: str) -> str:
+        """Collapse spacing in a distance string for stable display."""
+        return " ".join(value.split())
+
+    @classmethod
+    def parse_distance_around_X(cls, value: str | int | float | None) -> float:
+        """Parse a distance-around-ward or distance-around-parish config value into meters."""
+        if value is None:
+            return 0.0
+        if isinstance(value, (int, float)):
+            if value == 0:
+                return 0.0
+            raise TypeError(
+                "distance_around_ward/parish must include units such as '0.25 miles' or '0.4 km'"
+            )
+        if not isinstance(value, str):
+            raise TypeError(
+                "distance_around_ward/parish must be provided as a string or zero"
+            )
+
+        raw_value = value.strip()
+        if not raw_value:
+            return 0.0
+        # Pint will happily parse bare units like "miles" as 1 mile, but for
+        # config we want users to provide an explicit quantity up front.
+        if cls.LEADING_NUMBER_RE.match(raw_value) is None:
+            raise ValueError(
+                "distance_around_ward/parish must be a valid distance such as '0.25 miles' or '0.4 km'"
+            )
+
+        try:
+            quantity = cls.UNIT_REGISTRY(raw_value)
+        except (UndefinedUnitError, TypeError) as exc:
+            raise ValueError(
+                "distance_around_ward/parish must be a valid distance such as '0.25 miles' or '0.4 km'"
+            ) from exc
+
+        if getattr(quantity, "magnitude", None) == 0:
+            return 0.0
+        if not hasattr(quantity, "to"):
+            raise ValueError(
+                "distance_around_ward/parish must include length units such as miles or km"
+            )
+
+        try:
+            return float(quantity.to("meter").magnitude)
+        except Exception as exc:  # pragma: no cover
+            raise ValueError(
+                "distance_around_ward/parish must include length units such as miles or km"
+            ) from exc
+
+    @field_validator("distance_around_ward", mode="before")
+    @classmethod
+    def validate_distance_around_ward(cls, value: str | int | float | None) -> float:
+        """Normalize distance-around-ward config values into meters."""
+        return cls.parse_distance_around_X(value)
+
+    @field_validator("distance_around_parish", mode="before")
+    @classmethod
+    def validate_distance_around_parish(cls, value: str | int | float | None) -> float:
+        """Normalize distance-around-parish config values into meters."""
+        return cls.parse_distance_around_X(value)
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_distance_labels(cls, data: object) -> object:
+        """Preserve raw distance strings for result-card display."""
+        if not isinstance(data, dict):
+            return data
+
+        normalized_data = dict(data)
+        ward_distance = normalized_data.get("distance_around_ward")
+        if isinstance(ward_distance, str) and ward_distance.strip():
+            normalized_data["distance_around_ward_label"] = (
+                cls.normalize_distance_label(ward_distance)
+            )
+
+        parish_distance = normalized_data.get("distance_around_parish")
+        if isinstance(parish_distance, str) and parish_distance.strip():
+            normalized_data["distance_around_parish_label"] = (
+                cls.normalize_distance_label(parish_distance)
+            )
+
+        return normalized_data
+
+    @model_validator(mode="after")
+    def clear_zero_distance_labels(self) -> "CliConfig":
+        """Drop display labels when the parsed distance is zero."""
+        if self.distance_around_ward == 0:
+            self.distance_around_ward_label = None
+        if self.distance_around_parish == 0:
+            self.distance_around_parish_label = None
+        return self
 
 
 class CliInputs(BaseModel):

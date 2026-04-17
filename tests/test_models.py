@@ -150,6 +150,22 @@ def test_application_postcode_from_address_extracts_expected_postcode(
     assert Application.postcode_from_address(address) == expected_postcode
 
 
+def test_cli_config_normalizes_distance_around_ward_to_meters() -> None:
+    """CliConfig should normalize distance-around-ward inputs into meters."""
+    config = CliConfig.model_validate({"distance_around_ward": "0.25 miles"})
+
+    assert config.distance_around_ward == pytest.approx(402.336, abs=0.001)
+    assert config.distance_around_ward_label == "0.25 miles"
+
+
+def test_cli_config_normalizes_distance_around_parish_to_meters() -> None:
+    """CliConfig should normalize distance-around-parish inputs into meters."""
+    config = CliConfig.model_validate({"distance_around_parish": "0.4 km"})
+
+    assert config.distance_around_parish == pytest.approx(400.0, abs=0.001)
+    assert config.distance_around_parish_label == "0.4 km"
+
+
 @pytest.mark.parametrize(
     ("text", "expected_match"),
     [

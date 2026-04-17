@@ -1,0 +1,113 @@
+name: Send Planning Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Run in debug mode and upload the HTML artifact instead of emailing
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: "0 8 * * 1"
+
+env:
+  PYTHONUNBUFFERED: "1"
+  WEEKLY_LIST_URL: "https://public.oxford.gov.uk/online-applications/search.do?action=weeklyList"
+  CONFIG_PATH: "planning_update.toml"
+
+jobs:
+  send-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: python -m pip install uv
+
+      - name: Sync dependencies
+        run: uv sync
+
+      - name: Runner diagnostics
+        run: |
+          set -x
+          date -Is
+          uname -a
+          echo "runner.os=${RUNNER_OS}"
+          echo "runner.arch=${RUNNER_ARCH}"
+          echo "github.ref=${GITHUB_REF}"
+          echo "github.sha=${GITHUB_SHA}"
+          echo "config_path=${CONFIG_PATH}"
+          python --version
+          uv --version
+
+      - name: Write workflow config
+        env:
+          PLANNING_UPDATE_TOML: ${{ secrets.PLANNING_UPDATE_TOML }}
+        run: |
+          if [ -z "${PLANNING_UPDATE_TOML}" ]; then
+            echo "PLANNING_UPDATE_TOML secret is not set"
+            exit 1
+          fi
+          printf '%s\n' "${PLANNING_UPDATE_TOML}" > "${CONFIG_PATH}"
+          ls -l "${CONFIG_PATH}"
+          sed -n '1,120p' "${CONFIG_PATH}" | sed '/email_to/d'
+
+      - name: Oxford connectivity diagnostics
+        continue-on-error: true
+        run: |
+          set -x
+          mkdir -p /tmp/oxford-diagnostics
+          getent hosts public.oxford.gov.uk | tee /tmp/oxford-diagnostics/getent-hosts.txt || true
+          python - <<'PY' | tee /tmp/oxford-diagnostics/socket-getaddrinfo.txt
+          import pprint
+          import socket
+
+          try:
+              pprint.pp(socket.getaddrinfo("public.oxford.gov.uk", 443, type=socket.SOCK_STREAM))
+          except Exception as exc:
+              print(f"getaddrinfo failed: {exc!r}")
+          PY
+          curl -L -I -v \
+            --connect-timeout 10 \
+            --max-time 20 \
+            "${WEEKLY_LIST_URL}" \
+            2>&1 | tee /tmp/oxford-diagnostics/curl-head.txt || true
+          curl -L -v \
+            --connect-timeout 10 \
+            --max-time 20 \
+            -o /tmp/oxford-diagnostics/weekly-list.html \
+            "${WEEKLY_LIST_URL}" \
+            2>&1 | tee /tmp/oxford-diagnostics/curl-get.txt || true
+
+      - name: Run planning update in debug mode
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          uv run oxford-weekly --config "${CONFIG_PATH}" --debug 2>&1 | tee oxford-weekly.log
+
+      - name: Run planning update
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.dry_run }}
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          uv run oxford-weekly --config "${CONFIG_PATH}" 2>&1 | tee oxford-weekly.log
+
+      - name: Upload diagnostics and HTML artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: planning-update-diagnostics-${{ github.run_id }}
+          if-no-files-found: ignore
+          path: |
+            oxford-weekly.log
+            /tmp/oxford-diagnostics/**
+            *_planning_applications.html

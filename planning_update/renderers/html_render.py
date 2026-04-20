@@ -439,6 +439,7 @@ def render_application_html(
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="criteria-list">{criteria_fields}</table>'
         "</td></tr></table>"
         f'<p class="timestamp">Generated {format_generated_timestamp(rendered_at)}</p>'
+        '<p class="timestamp">Problems? Contact <a href="mailto:anna@railton.dev">anna@railton.dev</a>.</p>'
         "</td></tr></table>"
         "</td></tr></table>"
         "</body>"

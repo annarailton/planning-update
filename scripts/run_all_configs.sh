@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Add to crontab with `crontab -e`
 
 set -euo pipefail
 

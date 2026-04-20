@@ -1,11 +1,16 @@
 """High-level scraping and enrichment workflow for planning applications."""
 
 import time
+from datetime import UTC, datetime
 from pathlib import Path
 
 import requests
 
-from ..constants import ENRICHMENT_REQUEST_DELAY_SECONDS, SCRAPER_CACHE_DIR
+from ..constants import (
+    APPLICATION_DETAILS_DECISION_TTL_SECONDS,
+    ENRICHMENT_REQUEST_DELAY_SECONDS,
+    SCRAPER_CACHE_DIR,
+)
 from ..lookup.postcode_lookup import (
     lookup_postcode_in_oxford_wards,
     postcode_is_within_parish_distance,
@@ -19,7 +24,14 @@ from ..parsing.parser import (
     extract_pagination_urls,
     extract_summary_fields,
 )
-from .cache import load_cached_applications, save_cached_applications
+from .cache import (
+    load_cached_application_details_payload,
+    load_cached_applications,
+    load_cached_weekly_results,
+    save_cached_application_details,
+    save_cached_applications,
+    save_cached_weekly_results,
+)
 from .oxford_planning_client import (
     build_dates_tab_url,
     fetch_form,
@@ -35,6 +47,7 @@ def enrich_application(
     application: Application,
     *,
     query: PlanningQuery,
+    cache_dir: Path = SCRAPER_CACHE_DIR,
 ) -> Application:
     """Fetch and attach summary-only fields and important dates.
 
@@ -42,11 +55,27 @@ def enrich_application(
         session: HTTP session used to request the Oxford planning site.
         application: Parsed application to enrich.
         query: Query mode used to decide which extra pages are required.
+        cache_dir: Local cache directory for enrichment results when available.
 
     Returns:
         The application with summary-only fields and important dates populated
         when available. Ward and parish are derived locally from postcode data.
     """
+    cached_details_payload = load_cached_application_details_payload(
+        application.application_ref.value,
+        cache_dir=cache_dir,
+    )
+    cached_details = None
+    decision_details_are_stale = True
+    if cached_details_payload is not None:
+        cached_details = cached_details_payload["details"]
+        application = Application.model_validate(
+            application.model_dump(mode="json") | cached_details
+        )
+        decision_details_are_stale = cached_decision_details_are_stale(
+            cached_details_payload.get("decision_details_cached_at")
+        )
+
     request_count = 0
 
     def fetch_enrichment_page(page_url: str) -> str:
@@ -62,44 +91,70 @@ def enrich_application(
         page_html, _ = fetch_page(session, page_url)
         return page_html
 
-    ward = None
-    parish = None
-    if application.postcode is not None:
+    updated_fields: dict[str, object] = {}
+    if application.postcode is not None and (
+        application.ward is None or application.parish is None
+    ):
         try:
             postcode_lookup = lookup_postcode_in_oxford_wards(application.postcode)
         except ValueError:
             postcode_lookup = None
         if postcode_lookup is not None:
-            ward = postcode_lookup.ward_name
-            parish = postcode_lookup.parish_name
+            if application.ward is None:
+                updated_fields["ward"] = postcode_lookup.ward_name
+            if application.parish is None:
+                updated_fields["parish"] = postcode_lookup.parish_name
 
-    status = None
-    decided = None
-    decision = None
-    if query.status_mode == "decided":
+    decision_fields_missing = (
+        application.status is None
+        or application.decided is None
+        or application.decision is None
+    )
+    if query.status_mode == "decided" and (
+        decision_fields_missing or decision_details_are_stale
+    ):
         summary_html = fetch_enrichment_page(application.url)
         status, decided, decision = extract_summary_fields(summary_html)
+        updated_fields["status"] = status
+        updated_fields["decided"] = decided
+        updated_fields["decision"] = decision
 
-    consultation_deadline = None
-    determination_deadline = None
-    if query.status_mode == "validated":
+    if query.status_mode == "validated" and (
+        application.consultation_deadline is None
+        or application.determination_deadline is None
+    ):
         dates_html = fetch_enrichment_page(build_dates_tab_url(application.url))
         consultation_deadline, determination_deadline = extract_important_dates(
             dates_html
         )
+        updated_fields["consultation_deadline"] = consultation_deadline
+        updated_fields["determination_deadline"] = determination_deadline
 
-    return Application.model_validate(
-        application.model_dump()
-        | {
-            "ward": ward,
-            "parish": parish,
-            "status": status,
-            "decided": decided,
-            "decision": decision,
-            "consultation_deadline": consultation_deadline,
-            "determination_deadline": determination_deadline,
-        }
+    if not updated_fields:
+        return application
+
+    enriched_application = Application.model_validate(
+        application.model_dump() | updated_fields
     )
+    save_cached_application_details(enriched_application, cache_dir=cache_dir)
+    return enriched_application
+
+
+def cached_decision_details_are_stale(cached_at: str | None) -> bool:
+    """Return whether cached decision fields should be refreshed."""
+    if not cached_at:
+        return True
+
+    try:
+        cached_at_dt = datetime.fromisoformat(cached_at)
+    except ValueError:
+        return True
+
+    if cached_at_dt.tzinfo is None:
+        cached_at_dt = cached_at_dt.replace(tzinfo=UTC)
+
+    age_seconds = (datetime.now(UTC) - cached_at_dt).total_seconds()
+    return age_seconds >= APPLICATION_DETAILS_DECISION_TTL_SECONDS
 
 
 def filter_applications_by_keywords(
@@ -254,11 +309,22 @@ def filter_applications_by_ward_distance(
 
 
 def collect_result_applications(
-    session: requests.Session, *, query: PlanningQuery
+    session: requests.Session,
+    *,
+    query: PlanningQuery,
+    cache_dir: Path = SCRAPER_CACHE_DIR,
 ) -> tuple[list[Application], str]:
     """Collect applications from the weekly-list results pages before enrichment."""
     csrf_token, weeks = fetch_form(session)
     week = query.selected_week(weeks)
+    cached_applications = load_cached_weekly_results(
+        query,
+        week=week,
+        cache_dir=cache_dir,
+    )
+    if cached_applications is not None:
+        return cached_applications, week
+
     html, page_url = fetch_results_page(
         session,
         query=query,
@@ -269,14 +335,23 @@ def collect_result_applications(
     for pagination_url in extract_pagination_urls(html, page_url):
         next_html, next_page_url = fetch_page(session, pagination_url)
         applications.extend(extract_applications(next_html, week, next_page_url))
+    save_cached_weekly_results(
+        query,
+        applications,
+        week=week,
+        cache_dir=cache_dir,
+    )
     return applications, week
 
 
-def fetch_latest_applications(query: PlanningQuery) -> tuple[list[Application], str]:
+def fetch_latest_applications(
+    query: PlanningQuery, *, cache_dir: Path = SCRAPER_CACHE_DIR
+) -> tuple[list[Application], str]:
     """Fetch applications for the selected or latest available week.
 
     Args:
         query: User-facing query options for the weekly list search.
+        cache_dir: Local cache directory for enrichment results when available.
 
     Returns:
         A tuple of ``(applications, week)`` where ``week`` is the actual
@@ -285,13 +360,22 @@ def fetch_latest_applications(query: PlanningQuery) -> tuple[list[Application], 
     session = requests.Session()
     session.headers.update({"User-Agent": "planning-update/0.1"})
 
-    applications, week = collect_result_applications(session, query=query)
+    applications, week = collect_result_applications(
+        session,
+        query=query,
+        cache_dir=cache_dir,
+    )
     applications = filter_applications_by_keywords(applications, query=query)
     applications = filter_applications_by_major(session, applications, query=query)
     applications = filter_applications_by_ward_distance(applications, query=query)
     return (
         [
-            enrich_application(session, application, query=query)
+            enrich_application(
+                session,
+                application,
+                query=query,
+                cache_dir=cache_dir,
+            )
             for application in applications
         ],
         week,
@@ -306,7 +390,7 @@ def fetch_latest_applications_cached(
     if cached_applications is not None:
         return cached_applications
 
-    applications, _ = fetch_latest_applications(query)
+    applications, _ = fetch_latest_applications(query, cache_dir=cache_dir)
     save_cached_applications(query, applications, cache_dir=cache_dir)
     return applications
 

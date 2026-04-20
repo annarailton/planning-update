@@ -1,10 +1,20 @@
 """Tests for scraper helpers."""
 
+import json
 from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 
 import requests
 
 from planning_update.models import Application, ApplicationRef, PlanningQuery
+from planning_update.services.cache import (
+    load_cached_application_details,
+    load_cached_applications,
+    load_cached_weekly_results,
+    save_cached_application_details,
+    save_cached_applications,
+    save_cached_weekly_results,
+)
 from planning_update.services.scraper import (
     collect_result_applications,
     enrich_application,
@@ -15,8 +25,6 @@ from planning_update.services.scraper import (
     filter_applications_by_major,
     filter_applications_by_major_refs,
     filter_applications_by_ward_distance,
-    load_cached_applications,
-    save_cached_applications,
 )
 
 
@@ -52,6 +60,56 @@ def test_cached_applications_round_trip(
     save_cached_applications(query, applications, cache_dir=tmp_path)
 
     assert load_cached_applications(query, cache_dir=tmp_path) == applications
+
+
+def test_cached_application_details_round_trip(
+    application_factory: Callable[..., Application], tmp_path
+) -> None:
+    """Cached enrichment fields should round-trip by application reference."""
+    application = application_factory(
+        ward="Churchill Ward",
+        parish=None,
+        decided=None,
+        consultation_deadline="Mon 16 Mar 2026",
+        determination_deadline="Mon 06 Apr 2026",
+        status=None,
+        decision=None,
+    )
+
+    save_cached_application_details(application, cache_dir=tmp_path)
+
+    assert load_cached_application_details(
+        application.application_ref.value,
+        cache_dir=tmp_path,
+    ) == {
+        "consultation_deadline": "2026-03-16",
+        "determination_deadline": "2026-04-06",
+        "ward": "Churchill Ward",
+    }
+
+
+def test_cached_weekly_results_round_trip(
+    application_factory: Callable[..., Application], tmp_path
+) -> None:
+    """Shallow weekly-list result cards should round-trip by search scope."""
+    query = PlanningQuery(status_mode="validated")
+    applications = [application_factory()]
+
+    save_cached_weekly_results(
+        query,
+        applications,
+        week="07 Apr 2026",
+        cache_dir=tmp_path,
+    )
+
+    assert (
+        load_cached_weekly_results(
+            query,
+            week="07 Apr 2026",
+            cache_dir=tmp_path,
+        )
+        == applications
+    )
 
 
 def test_filter_applications_by_major_refs_keeps_matching_refs(
@@ -170,7 +228,7 @@ def test_fetch_latest_applications_does_not_hit_major_page_when_disabled(
     """Non-major runs should not request the Oxford major-applications page."""
     monkeypatch.setattr(
         "planning_update.services.scraper.collect_result_applications",
-        lambda session, *, query: ([application_factory()], "07 Apr 2026"),
+        lambda session, *, query, cache_dir: ([application_factory()], "07 Apr 2026"),
     )
 
     def fail_fetch_major_applications_page(session: requests.Session) -> str:
@@ -182,13 +240,64 @@ def test_fetch_latest_applications_does_not_hit_major_page_when_disabled(
     )
     monkeypatch.setattr(
         "planning_update.services.scraper.enrich_application",
-        lambda session, application, *, query: application,
+        lambda session, application, *, query, cache_dir: application,
     )
 
     applications, week = fetch_latest_applications(PlanningQuery())
 
     assert len(applications) == 1
     assert week == "07 Apr 2026"
+
+
+def test_collect_result_applications_reuses_cached_weekly_results(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
+) -> None:
+    """Repeated weekly-list collection should reuse cached shallow results."""
+    fetch_results_calls = 0
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_form",
+        lambda session: ("csrf-token", ["07 Apr 2026"]),
+    )
+
+    def fake_fetch_results_page(
+        session: requests.Session,
+        *,
+        query: PlanningQuery,
+        csrf_token: str,
+        week: str,
+    ) -> tuple[str, str]:
+        nonlocal fetch_results_calls
+        fetch_results_calls += 1
+        return "<html></html>", "https://example.com/results"
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_results_page",
+        fake_fetch_results_page,
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_applications",
+        lambda html, week, page_url: [application_factory()],
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_pagination_urls",
+        lambda html, page_url: [],
+    )
+
+    first, first_week = collect_result_applications(
+        requests.Session(),
+        query=PlanningQuery(status_mode="validated"),
+        cache_dir=tmp_path,
+    )
+    second, second_week = collect_result_applications(
+        requests.Session(),
+        query=PlanningQuery(status_mode="validated"),
+        cache_dir=tmp_path,
+    )
+
+    assert first == second == [application_factory()]
+    assert first_week == second_week == "07 Apr 2026"
+    assert fetch_results_calls == 1
 
 
 def test_fetch_latest_applications_cached_reuses_saved_results(
@@ -200,7 +309,7 @@ def test_fetch_latest_applications_cached_reuses_saved_results(
     fetch_calls = 0
 
     def fake_fetch_latest_applications(
-        _: PlanningQuery,
+        _: PlanningQuery, *, cache_dir
     ) -> tuple[list[Application], str]:
         nonlocal fetch_calls
         fetch_calls += 1
@@ -252,7 +361,7 @@ def test_fetch_latest_applications_enriches_keyword_matches(
 
     monkeypatch.setattr(
         "planning_update.services.scraper.collect_result_applications",
-        lambda session, *, query: (
+        lambda session, *, query, cache_dir: (
             [
                 application_factory(
                     application_ref={"value": "26/00281/FUL"},
@@ -268,7 +377,11 @@ def test_fetch_latest_applications_enriches_keyword_matches(
     )
 
     def fake_enrich_application(
-        session: requests.Session, application: Application, *, query: PlanningQuery
+        session: requests.Session,
+        application: Application,
+        *,
+        query: PlanningQuery,
+        cache_dir,
     ) -> Application:
         seen_refs.append(application.application_ref.value)
         return application
@@ -297,7 +410,7 @@ def test_fetch_latest_applications_enriches_major_matches(
 
     monkeypatch.setattr(
         "planning_update.services.scraper.collect_result_applications",
-        lambda session, *, query: (
+        lambda session, *, query, cache_dir: (
             [
                 application_factory(
                     application_ref={"value": "26/00281/FUL"},
@@ -321,7 +434,11 @@ def test_fetch_latest_applications_enriches_major_matches(
     )
 
     def fake_enrich_application(
-        session: requests.Session, application: Application, *, query: PlanningQuery
+        session: requests.Session,
+        application: Application,
+        *,
+        query: PlanningQuery,
+        cache_dir,
     ) -> Application:
         seen_refs.append(application.application_ref.value)
         return application
@@ -341,7 +458,7 @@ def test_fetch_latest_applications_enriches_major_matches(
 
 
 def test_enrich_application_skips_summary_page_for_validated_queries(
-    application_factory: Callable[..., Application], monkeypatch
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
 ) -> None:
     """Validated queries should not hit the summary page just to extract decision fields."""
     requested_urls: list[str] = []
@@ -366,8 +483,18 @@ def test_enrich_application_skips_summary_page_for_validated_queries(
 
     enriched = enrich_application(
         requests.Session(),
-        application_factory(address="169 Windmill Road Oxford Oxfordshire OX3 7DW"),
+        application_factory(
+            address="169 Windmill Road Oxford Oxfordshire OX3 7DW",
+            ward=None,
+            parish=None,
+            decided=None,
+            consultation_deadline=None,
+            determination_deadline=None,
+            status=None,
+            decision=None,
+        ),
         query=PlanningQuery(status_mode="validated"),
+        cache_dir=tmp_path,
     )
 
     assert enriched.ward == "Churchill Ward"
@@ -378,8 +505,99 @@ def test_enrich_application_skips_summary_page_for_validated_queries(
     assert requested_urls == ["https://example.com/app?activeTab=dates"]
 
 
+def test_enrich_application_reuses_cached_details_by_application_ref(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
+) -> None:
+    """Cached enrichment details should avoid re-fetching detail pages."""
+    cached_application = application_factory(
+        status="Decided",
+        decision="Approved",
+        decided="Thu 09 Apr 2026",
+        ward="Churchill Ward",
+    )
+    save_cached_application_details(cached_application, cache_dir=tmp_path)
+
+    def fail_fetch_page(session: requests.Session, page_url: str) -> tuple[str, str]:
+        raise AssertionError("fetch_page should not be called when details are cached")
+
+    monkeypatch.setattr("planning_update.services.scraper.fetch_page", fail_fetch_page)
+    monkeypatch.setattr(
+        "planning_update.services.scraper.lookup_postcode_in_oxford_wards",
+        lambda postcode: (_ for _ in ()).throw(
+            AssertionError(
+                "postcode lookup should not be called when details are cached"
+            )
+        ),
+    )
+
+    enriched = enrich_application(
+        requests.Session(),
+        application_factory(),
+        query=PlanningQuery(status_mode="decided"),
+        cache_dir=tmp_path,
+    )
+
+    assert enriched.status == "Decided"
+    assert enriched.decision == "Approved"
+    assert enriched.decided is not None
+    assert enriched.ward == "Churchill Ward"
+
+
+def test_enrich_application_refreshes_stale_cached_decision_details(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
+) -> None:
+    """Stale cached decision details should be refreshed from the live summary page."""
+    cached_application = application_factory(
+        status="Registered",
+        decision=None,
+        decided=None,
+        ward="Churchill Ward",
+        consultation_deadline=None,
+        determination_deadline=None,
+    )
+    save_cached_application_details(cached_application, cache_dir=tmp_path)
+    cache_path = tmp_path / "application-details" / "26_00281_FUL.json"
+    stale_cached_payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    stale_cached_payload["decision_details_cached_at"] = (
+        datetime.now(UTC) - timedelta(days=8)
+    ).isoformat()
+    cache_path.write_text(
+        json.dumps(stale_cached_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    requested_urls: list[str] = []
+
+    def fake_fetch_page(session: requests.Session, page_url: str) -> tuple[str, str]:
+        requested_urls.append(page_url)
+        return "<html></html>", page_url
+
+    monkeypatch.setattr("planning_update.services.scraper.fetch_page", fake_fetch_page)
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_summary_fields",
+        lambda html: ("Decided", "Thu 09 Apr 2026", "Approved"),
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.lookup_postcode_in_oxford_wards",
+        lambda postcode: (_ for _ in ()).throw(
+            AssertionError("postcode lookup should not be called when ward is cached")
+        ),
+    )
+
+    enriched = enrich_application(
+        requests.Session(),
+        application_factory(),
+        query=PlanningQuery(status_mode="decided"),
+        cache_dir=tmp_path,
+    )
+
+    assert requested_urls == ["https://example.com/app"]
+    assert enriched.status == "Decided"
+    assert enriched.decision == "Approved"
+
+
 def test_enrich_application_pauses_between_enrichment_requests(
-    application_factory: Callable[..., Application], monkeypatch
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
 ) -> None:
     """Validated enrichment should not pause when only one request is needed."""
     requested_urls: list[str] = []
@@ -408,8 +626,18 @@ def test_enrich_application_pauses_between_enrichment_requests(
 
     enrich_application(
         requests.Session(),
-        application_factory(address="169 Windmill Road Oxford Oxfordshire OX3 7DW"),
+        application_factory(
+            address="169 Windmill Road Oxford Oxfordshire OX3 7DW",
+            ward=None,
+            parish=None,
+            decided=None,
+            consultation_deadline=None,
+            determination_deadline=None,
+            status=None,
+            decision=None,
+        ),
         query=PlanningQuery(status_mode="validated"),
+        cache_dir=tmp_path,
     )
 
     assert requested_urls == ["https://example.com/app?activeTab=dates"]
@@ -417,7 +645,7 @@ def test_enrich_application_pauses_between_enrichment_requests(
 
 
 def test_enrich_application_skips_dates_page_for_decided_queries(
-    application_factory: Callable[..., Application], monkeypatch
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
 ) -> None:
     """Decided queries should not hit the dates page just to extract deadlines."""
     requested_urls: list[str] = []
@@ -442,8 +670,18 @@ def test_enrich_application_skips_dates_page_for_decided_queries(
 
     enriched = enrich_application(
         requests.Session(),
-        application_factory(address="169 Windmill Road Oxford Oxfordshire OX3 7DW"),
+        application_factory(
+            address="169 Windmill Road Oxford Oxfordshire OX3 7DW",
+            ward=None,
+            parish=None,
+            decided=None,
+            consultation_deadline=None,
+            determination_deadline=None,
+            status=None,
+            decision=None,
+        ),
         query=PlanningQuery(status_mode="decided"),
+        cache_dir=tmp_path,
     )
 
     assert enriched.ward == "Churchill Ward"
@@ -455,7 +693,7 @@ def test_enrich_application_skips_dates_page_for_decided_queries(
 
 
 def test_enrich_application_uses_postcode_lookup_for_ward_and_parish(
-    application_factory: Callable[..., Application], monkeypatch
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
 ) -> None:
     """Enrichment should derive ward and parish locally from the application postcode."""
     monkeypatch.setattr(
@@ -481,9 +719,17 @@ def test_enrich_application_uses_postcode_lookup_for_ward_and_parish(
     enriched = enrich_application(
         requests.Session(),
         application_factory(
-            address="Blackbird Leys Community Centre, Blackbird Leys Road, Oxford OX4 6HW"
+            address="Blackbird Leys Community Centre, Blackbird Leys Road, Oxford OX4 6HW",
+            ward=None,
+            parish=None,
+            decided=None,
+            consultation_deadline=None,
+            determination_deadline=None,
+            status=None,
+            decision=None,
         ),
         query=PlanningQuery(status_mode="validated"),
+        cache_dir=tmp_path,
     )
 
     assert enriched.ward == "Blackbird Leys"
@@ -491,7 +737,7 @@ def test_enrich_application_uses_postcode_lookup_for_ward_and_parish(
 
 
 def test_enrich_application_leaves_ward_and_parish_empty_when_postcode_lookup_fails(
-    application_factory: Callable[..., Application], monkeypatch
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
 ) -> None:
     """Enrichment should tolerate postcodes missing from the local lookup data."""
     monkeypatch.setattr(
@@ -509,9 +755,89 @@ def test_enrich_application_leaves_ward_and_parish_empty_when_postcode_lookup_fa
 
     enriched = enrich_application(
         requests.Session(),
-        application_factory(address="1 Test Street, Oxford OX9 9ZZ"),
+        application_factory(
+            address="1 Test Street, Oxford OX9 9ZZ",
+            ward=None,
+            parish=None,
+            decided=None,
+            consultation_deadline=None,
+            determination_deadline=None,
+            status=None,
+            decision=None,
+        ),
         query=PlanningQuery(status_mode="validated"),
+        cache_dir=tmp_path,
     )
 
     assert enriched.ward is None
     assert enriched.parish is None
+
+
+def test_enrich_application_merges_cached_details_across_query_modes(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
+) -> None:
+    """Validated and decided enrichment should accumulate in one per-ref cache."""
+    application = application_factory(
+        ward=None,
+        parish=None,
+        decided=None,
+        consultation_deadline=None,
+        determination_deadline=None,
+        status=None,
+        decision=None,
+    )
+    save_cached_application_details(
+        application_factory(
+            application_ref={"value": application.application_ref.value},
+            parish=None,
+            decided=None,
+            consultation_deadline="Mon 16 Mar 2026",
+            determination_deadline="Mon 06 Apr 2026",
+            ward="Churchill Ward",
+            status=None,
+            decision=None,
+        ),
+        cache_dir=tmp_path,
+    )
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.lookup_postcode_in_oxford_wards",
+        lambda postcode: type(
+            "LookupResult",
+            (),
+            {"ward_name": "Churchill Ward", "parish_name": None},
+        )(),
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_summary_fields",
+        lambda html: ("Decided", "Thu 09 Apr 2026", "Approved"),
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_page",
+        lambda session, page_url: ("<html></html>", page_url),
+    )
+
+    enriched = enrich_application(
+        requests.Session(),
+        application,
+        query=PlanningQuery(status_mode="decided"),
+        cache_dir=tmp_path,
+    )
+
+    cached_details = load_cached_application_details(
+        application.application_ref.value,
+        cache_dir=tmp_path,
+    )
+
+    assert enriched.consultation_deadline is not None
+    assert enriched.determination_deadline is not None
+    assert enriched.status == "Decided"
+    assert enriched.decision == "Approved"
+    assert cached_details == {
+        "consultation_deadline": "2026-03-16",
+        "decided": "2026-04-09",
+        "decision": "Approved",
+        "determination_deadline": "2026-04-06",
+        "status": "Decided",
+        "ward": "Churchill Ward",
+    }

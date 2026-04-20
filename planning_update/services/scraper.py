@@ -1,5 +1,6 @@
 """High-level scraping and enrichment workflow for planning applications."""
 
+import logging
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,6 +10,7 @@ import requests
 from ..constants import (
     APPLICATION_DETAILS_DECISION_TTL_SECONDS,
     ENRICHMENT_REQUEST_DELAY_SECONDS,
+    MAJOR_APPLICATIONS_CACHE_TTL_SECONDS,
     SCRAPER_CACHE_DIR,
 )
 from ..lookup.postcode_lookup import (
@@ -27,9 +29,11 @@ from ..parsing.parser import (
 from .cache import (
     load_cached_application_details_payload,
     load_cached_applications,
+    load_cached_major_applications_payload,
     load_cached_weekly_results,
     save_cached_application_details,
     save_cached_applications,
+    save_cached_major_applications_page,
     save_cached_weekly_results,
 )
 from .oxford_planning_client import (
@@ -40,6 +44,8 @@ from .oxford_planning_client import (
     fetch_results_page,
     resolve_actual_week,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def enrich_application(
@@ -69,11 +75,16 @@ def enrich_application(
     decision_details_are_stale = True
     if cached_details_payload is not None:
         cached_details = cached_details_payload["details"]
+        logger.info(
+            "Cache hit: application details for %s",
+            application.application_ref.value,
+        )
         application = Application.model_validate(
             application.model_dump(mode="json") | cached_details
         )
-        decision_details_are_stale = cached_decision_details_are_stale(
-            cached_details_payload.get("decision_details_cached_at")
+        decision_details_are_stale = cached_timestamp_is_stale(
+            cached_details_payload.get("decision_details_cached_at"),
+            ttl_seconds=APPLICATION_DETAILS_DECISION_TTL_SECONDS,
         )
 
     request_count = 0
@@ -140,8 +151,8 @@ def enrich_application(
     return enriched_application
 
 
-def cached_decision_details_are_stale(cached_at: str | None) -> bool:
-    """Return whether cached decision fields should be refreshed."""
+def cached_timestamp_is_stale(cached_at: str | None, *, ttl_seconds: int) -> bool:
+    """Return whether a cached timestamp is missing, invalid, or older than a TTL."""
     if not cached_at:
         return True
 
@@ -154,7 +165,26 @@ def cached_decision_details_are_stale(cached_at: str | None) -> bool:
         cached_at_dt = cached_at_dt.replace(tzinfo=UTC)
 
     age_seconds = (datetime.now(UTC) - cached_at_dt).total_seconds()
-    return age_seconds >= APPLICATION_DETAILS_DECISION_TTL_SECONDS
+    return age_seconds >= ttl_seconds
+
+
+def load_major_applications_page(
+    session: requests.Session,
+    *,
+    cache_dir: Path = SCRAPER_CACHE_DIR,
+) -> str:
+    """Load the Oxford major-applications page, reusing the local cache when fresh."""
+    cached_payload = load_cached_major_applications_payload(cache_dir=cache_dir)
+    if cached_payload is not None and not cached_timestamp_is_stale(
+        cached_payload["cached_at"],
+        ttl_seconds=MAJOR_APPLICATIONS_CACHE_TTL_SECONDS,
+    ):
+        logger.info("Cache hit: major applications page")
+        return cached_payload["html"]
+
+    html = fetch_major_applications_page(session)
+    save_cached_major_applications_page(html, cache_dir=cache_dir)
+    return html
 
 
 def filter_applications_by_keywords(
@@ -200,6 +230,7 @@ def filter_applications_by_major(
     applications: list[Application],
     *,
     query: PlanningQuery,
+    cache_dir: Path = SCRAPER_CACHE_DIR,
 ) -> list[Application]:
     """Filter applications to current Oxford major applications when configured.
 
@@ -211,7 +242,7 @@ def filter_applications_by_major(
     major_application_refs = {
         application_ref.value
         for application_ref in extract_major_application_refs(
-            fetch_major_applications_page(session)
+            load_major_applications_page(session, cache_dir=cache_dir)
         )
     }
     return filter_applications_by_major_refs(
@@ -345,13 +376,17 @@ def collect_result_applications(
 
 
 def fetch_latest_applications(
-    query: PlanningQuery, *, cache_dir: Path = SCRAPER_CACHE_DIR
+    query: PlanningQuery,
+    *,
+    cache_dir: Path = SCRAPER_CACHE_DIR,
+    selected_week: str | None = None,
 ) -> tuple[list[Application], str]:
     """Fetch applications for the selected or latest available week.
 
     Args:
         query: User-facing query options for the weekly list search.
         cache_dir: Local cache directory for enrichment results when available.
+        selected_week: When provided, skip the week selection step and use this
 
     Returns:
         A tuple of ``(applications, week)`` where ``week`` is the actual
@@ -364,9 +399,15 @@ def fetch_latest_applications(
         session,
         query=query,
         cache_dir=cache_dir,
+        selected_week=selected_week,
     )
     applications = filter_applications_by_keywords(applications, query=query)
-    applications = filter_applications_by_major(session, applications, query=query)
+    applications = filter_applications_by_major(
+        session,
+        applications,
+        query=query,
+        cache_dir=cache_dir,
+    )
     applications = filter_applications_by_ward_distance(applications, query=query)
     return (
         [

@@ -11,6 +11,7 @@ from ..models import Application, PlanningQuery
 
 APPLICATION_DETAILS_CACHE_DIRNAME = "application-details"
 WEEKLY_RESULTS_CACHE_DIRNAME = "weekly-results"
+MAJOR_APPLICATIONS_CACHE_FILENAME = "major-applications.json"
 APPLICATION_DETAILS_FIELDS = (
     "ward",
     "parish",
@@ -113,6 +114,48 @@ def save_cached_weekly_results(
     cache_path.write_text(
         json.dumps(
             [application.model_dump(mode="json") for application in applications],
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+
+def build_major_applications_cache_path(*, cache_dir: Path = SCRAPER_CACHE_DIR) -> Path:
+    """Return the cache filename for the Oxford major-applications page."""
+    return cache_dir / MAJOR_APPLICATIONS_CACHE_FILENAME
+
+
+def load_cached_major_applications_payload(
+    *, cache_dir: Path = SCRAPER_CACHE_DIR
+) -> dict[str, Any] | None:
+    """Load the raw major-applications cache payload when present."""
+    cache_path = build_major_applications_cache_path(cache_dir=cache_dir)
+    if not cache_path.exists():
+        return None
+
+    payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Invalid major applications cache payload: {cache_path}")
+    html = payload.get("html")
+    cached_at = payload.get("cached_at")
+    if not isinstance(html, str) or not isinstance(cached_at, str):
+        raise ValueError(f"Invalid major applications cache payload: {cache_path}")
+    return {"html": html, "cached_at": cached_at}
+
+
+def save_cached_major_applications_page(
+    html: str, *, cache_dir: Path = SCRAPER_CACHE_DIR
+) -> None:
+    """Persist the Oxford major-applications page HTML with a cache timestamp."""
+    cache_path = build_major_applications_cache_path(cache_dir=cache_dir)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(
+        json.dumps(
+            {
+                "html": html,
+                "cached_at": datetime.now(UTC).isoformat(),
+            },
             indent=2,
             sort_keys=True,
         ),

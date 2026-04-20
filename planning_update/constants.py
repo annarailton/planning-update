@@ -41,6 +41,7 @@ ENRICHMENT_REQUEST_DELAY_SECONDS = 0.5
 # Cache
 SCRAPER_CACHE_DIR = Path(".cache/planning-update")
 APPLICATION_DETAILS_DECISION_TTL_SECONDS = 7 * 24 * 60 * 60  # stale cache after 7 days
+MAJOR_APPLICATIONS_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60  # stale cache after 30 days
 
 # Email stuff
 RESEND_EMAILS_URL = "https://api.resend.com/emails"

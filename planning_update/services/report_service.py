@@ -6,6 +6,7 @@ from ..models import (
     PlanningReport,
     ResolvedCliOptions,
 )
+from .oxford_planning_client import resolve_actual_week
 from .scraper import fetch_applications_for_query
 
 SECTION_TITLES = {
@@ -73,7 +74,7 @@ def build_planning_report(*, options: ResolvedCliOptions) -> PlanningReport:
         "validated": False,
         "decided": False,
     }
-    actual_week: str | None = None
+    actual_week = resolve_actual_week(options.queries[0]) if options.queries else None
 
     for query in options.queries:
         if query.uses_major_matching():
@@ -81,9 +82,8 @@ def build_planning_report(*, options: ResolvedCliOptions) -> PlanningReport:
         section_applications, selected_week = fetch_applications_for_query(
             query=query,
             debug=options.debug,
+            actual_week=actual_week,
         )
-        if actual_week is None and selected_week is not None:
-            actual_week = selected_week
         applications_by_status[query.status_mode] = merge_applications(
             applications_by_status[query.status_mode],
             section_applications,

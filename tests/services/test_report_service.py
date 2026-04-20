@@ -18,12 +18,17 @@ def test_build_planning_report_builds_sections_for_both_statuses(
     application_factory: Callable[..., Application], monkeypatch
 ) -> None:
     """Both-mode reports should merge applications into validated and decided sections."""
-    seen_queries: list[tuple[str, bool]] = []
+    seen_queries: list[tuple[str, bool, str | None]] = []
+
+    monkeypatch.setattr(
+        "planning_update.services.report_service.resolve_actual_week",
+        lambda query: "07 Apr 2026",
+    )
 
     def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
+        *, query: PlanningQuery, debug: bool, actual_week: str | None
     ) -> tuple[list[Application], str | None]:
-        seen_queries.append((query.status_mode, debug))
+        seen_queries.append((query.status_mode, debug, actual_week))
         if query.status_mode == "validated":
             return [
                 application_factory(application_ref={"value": "26/00281/FUL"})
@@ -48,7 +53,10 @@ def test_build_planning_report_builds_sections_for_both_statuses(
         )
     )
 
-    assert seen_queries == [("validated", True), ("decided", True)]
+    assert seen_queries == [
+        ("validated", True, "07 Apr 2026"),
+        ("decided", True, "07 Apr 2026"),
+    ]
     assert [section.title for section in report.sections] == [
         "Validated applications",
         "Decided applications",
@@ -66,9 +74,13 @@ def test_build_planning_report_marks_unsearched_section(
     application_factory: Callable[..., Application], monkeypatch
 ) -> None:
     """Single-status reports should mark the other section as not searched."""
+    monkeypatch.setattr(
+        "planning_update.services.report_service.resolve_actual_week",
+        lambda query: "07 Apr 2026",
+    )
 
     def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
+        *, query: PlanningQuery, debug: bool, actual_week: str | None
     ) -> tuple[list[Application], str | None]:
         return [application_factory()], "07 Apr 2026"
 
@@ -93,9 +105,13 @@ def test_build_planning_report_flags_when_no_major_validated_applications_exist(
     application_factory: Callable[..., Application], monkeypatch
 ) -> None:
     """Validated sections should show a notice when a major query finds none."""
+    monkeypatch.setattr(
+        "planning_update.services.report_service.resolve_actual_week",
+        lambda query: "07 Apr 2026",
+    )
 
     def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
+        *, query: PlanningQuery, debug: bool, actual_week: str | None
     ) -> tuple[list[Application], str | None]:
         if query.major:
             return [], "07 Apr 2026"
@@ -127,9 +143,13 @@ def test_build_planning_report_does_not_flag_missing_major_decided_applications(
     application_factory: Callable[..., Application], monkeypatch
 ) -> None:
     """Decided sections should not show a no-major notice."""
+    monkeypatch.setattr(
+        "planning_update.services.report_service.resolve_actual_week",
+        lambda query: "07 Apr 2026",
+    )
 
     def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
+        *, query: PlanningQuery, debug: bool, actual_week: str | None
     ) -> tuple[list[Application], str | None]:
         if query.major:
             return [], "07 Apr 2026"
@@ -159,9 +179,13 @@ def test_build_planning_report_does_not_flag_when_major_application_exists(
     application_factory: Callable[..., Application], monkeypatch
 ) -> None:
     """Sections should not show the notice when a major application is present."""
+    monkeypatch.setattr(
+        "planning_update.services.report_service.resolve_actual_week",
+        lambda query: "07 Apr 2026",
+    )
 
     def fake_fetch_applications_for_query(
-        *, query: PlanningQuery, debug: bool
+        *, query: PlanningQuery, debug: bool, actual_week: str | None
     ) -> tuple[list[Application], str | None]:
         if query.major:
             return [application_factory(is_major_application=True)], "07 Apr 2026"

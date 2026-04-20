@@ -254,25 +254,16 @@ def filter_applications_by_major(
 def filter_applications_by_ward_distance(
     applications: list[Application], *, query: PlanningQuery
 ) -> list[Application]:
-    """Filter applications to those inside or near selected ward/parish boundaries."""
-    if (
-        not query.uses_distance_around_ward()
-        and not query.uses_distance_around_parish()
-    ):
-        return applications
+    """Filter applications to those matching the configured ward/parish scope."""
     if query.ward_name is None and query.parish_name is None:
         return applications
 
     matching_applications: list[Application] = []
     target_ward_name = (
-        query.resolved_ward_name()
-        if query.ward_name is not None and query.uses_distance_around_ward()
-        else None
+        query.resolved_ward_name() if query.ward_name is not None else None
     )
     target_parish_name = (
-        query.resolved_parish_name()
-        if query.parish_name is not None and query.uses_distance_around_parish()
-        else None
+        query.resolved_parish_name() if query.parish_name is not None else None
     )
     target_ward_label = (
         query.ward_name
@@ -298,19 +289,33 @@ def filter_applications_by_ward_distance(
         try:
             matches_ward = True
             if target_ward_name is not None:
-                matches_ward = postcode_is_within_ward_distance(
-                    application.postcode,
-                    target_ward_name,
-                    distance_meters=query.distance_around_ward_meters,
-                )
+                if query.uses_distance_around_ward():
+                    matches_ward = postcode_is_within_ward_distance(
+                        application.postcode,
+                        target_ward_name,
+                        distance_meters=query.distance_around_ward_meters,
+                    )
+                else:
+                    matches_ward = (
+                        lookup_postcode_in_oxford_wards(application.postcode).ward_name
+                        == target_ward_name
+                    )
 
             matches_parish = True
             if target_parish_name is not None:
-                matches_parish = postcode_is_within_parish_distance(
-                    application.postcode,
-                    target_parish_name,
-                    distance_meters=query.distance_around_parish_meters,
-                )
+                if query.uses_distance_around_parish():
+                    matches_parish = postcode_is_within_parish_distance(
+                        application.postcode,
+                        target_parish_name,
+                        distance_meters=query.distance_around_parish_meters,
+                    )
+                else:
+                    matches_parish = (
+                        lookup_postcode_in_oxford_wards(
+                            application.postcode
+                        ).parish_name
+                        == target_parish_name
+                    )
 
             if matches_ward and matches_parish:
                 inclusion_reasons: list[str] = []
@@ -344,21 +349,35 @@ def collect_result_applications(
     *,
     query: PlanningQuery,
     cache_dir: Path = SCRAPER_CACHE_DIR,
+    selected_week: str | None = None,
 ) -> tuple[list[Application], str]:
-    """Collect applications from the weekly-list results pages before enrichment."""
-    csrf_token, weeks = fetch_form(session)
-    week = query.selected_week(weeks)
+    """Collect shallow weekly-list applications for the whole selected week/status."""
+    week = selected_week
+    if week is None:
+        _, weeks = fetch_form(session)
+        week = query.selected_week(weeks)
+    weekly_list_query = PlanningQuery(
+        requested_week=week,
+        status_mode=query.status_mode,
+    )
     cached_applications = load_cached_weekly_results(
-        query,
+        weekly_list_query,
         week=week,
         cache_dir=cache_dir,
     )
     if cached_applications is not None:
+        logger.info(
+            "Cache hit: weekly results for %s (%s)",
+            week,
+            query.status_mode,
+        )
         return cached_applications, week
+
+    csrf_token, _ = fetch_form(session)
 
     html, page_url = fetch_results_page(
         session,
-        query=query,
+        query=weekly_list_query,
         csrf_token=csrf_token,
         week=week,
     )
@@ -367,7 +386,7 @@ def collect_result_applications(
         next_html, next_page_url = fetch_page(session, pagination_url)
         applications.extend(extract_applications(next_html, week, next_page_url))
     save_cached_weekly_results(
-        query,
+        weekly_list_query,
         applications,
         week=week,
         cache_dir=cache_dir,
@@ -424,22 +443,33 @@ def fetch_latest_applications(
 
 
 def fetch_latest_applications_cached(
-    query: PlanningQuery, *, cache_dir: Path = SCRAPER_CACHE_DIR
+    query: PlanningQuery,
+    *,
+    cache_dir: Path = SCRAPER_CACHE_DIR,
+    selected_week: str | None = None,
 ) -> list[Application]:
     """Fetch applications for a query, reusing the local cache when available."""
     cached_applications = load_cached_applications(query, cache_dir=cache_dir)
     if cached_applications is not None:
+        logger.info("Cache hit: query results for %s", query.model_dump(mode="json"))
         return cached_applications
 
-    applications, _ = fetch_latest_applications(query, cache_dir=cache_dir)
+    applications, _ = fetch_latest_applications(
+        query,
+        cache_dir=cache_dir,
+        selected_week=selected_week,
+    )
     save_cached_applications(query, applications, cache_dir=cache_dir)
     return applications
 
 
 def fetch_applications_for_query(
-    *, query: PlanningQuery, debug: bool
+    *, query: PlanningQuery, debug: bool, actual_week: str | None = None
 ) -> tuple[list[Application], str | None]:
     """Fetch applications plus the actual selected week when available."""
     if debug:
-        return fetch_latest_applications_cached(query), resolve_actual_week(query)
-    return fetch_latest_applications(query)
+        return (
+            fetch_latest_applications_cached(query, selected_week=actual_week),
+            actual_week,
+        )
+    return fetch_latest_applications(query, selected_week=actual_week)

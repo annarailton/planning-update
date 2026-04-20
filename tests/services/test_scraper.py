@@ -158,6 +158,90 @@ def test_filter_applications_by_major_returns_original_list_when_disabled(
     assert filtered == applications
 
 
+def test_filter_applications_by_major_reuses_cached_major_page(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
+) -> None:
+    """Major filtering should reuse a fresh cached major-applications page."""
+    applications = [application_factory(application_ref={"value": "26/00282/FUL"})]
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_major_applications_page",
+        lambda session: (_ for _ in ()).throw(
+            AssertionError("fetch_major_applications_page should not be called")
+        ),
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_major_application_refs",
+        lambda html: [ApplicationRef(value="26/00282/FUL")],
+    )
+    from planning_update.services.cache import save_cached_major_applications_page
+
+    save_cached_major_applications_page(
+        "<html>cached major page</html>", cache_dir=tmp_path
+    )
+
+    filtered = filter_applications_by_major(
+        requests.Session(),
+        applications,
+        query=PlanningQuery(major=True),
+        cache_dir=tmp_path,
+    )
+
+    assert [application.application_ref.value for application in filtered] == [
+        "26/00282/FUL"
+    ]
+
+
+def test_filter_applications_by_major_refreshes_stale_major_page(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
+) -> None:
+    """Major filtering should refresh the major-applications page when the cache is stale."""
+    applications = [application_factory(application_ref={"value": "26/00282/FUL"})]
+    fetch_calls = 0
+
+    from planning_update.services.cache import (
+        build_major_applications_cache_path,
+        save_cached_major_applications_page,
+    )
+
+    save_cached_major_applications_page(
+        "<html>stale major page</html>", cache_dir=tmp_path
+    )
+    cache_path = build_major_applications_cache_path(cache_dir=tmp_path)
+    stale_payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    stale_payload["cached_at"] = (datetime.now(UTC) - timedelta(days=31)).isoformat()
+    cache_path.write_text(
+        json.dumps(stale_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    def fake_fetch_major_applications_page(session: requests.Session) -> str:
+        nonlocal fetch_calls
+        fetch_calls += 1
+        return "<html>fresh major page</html>"
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_major_applications_page",
+        fake_fetch_major_applications_page,
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_major_application_refs",
+        lambda html: [ApplicationRef(value="26/00282/FUL")],
+    )
+
+    filtered = filter_applications_by_major(
+        requests.Session(),
+        applications,
+        query=PlanningQuery(major=True),
+        cache_dir=tmp_path,
+    )
+
+    assert [application.application_ref.value for application in filtered] == [
+        "26/00282/FUL"
+    ]
+    assert fetch_calls == 1
+
+
 def test_filter_applications_by_ward_distance_keeps_only_matching_postcodes(
     application_factory: Callable[..., Application], monkeypatch
 ) -> None:
@@ -188,6 +272,43 @@ def test_filter_applications_by_ward_distance_keeps_only_matching_postcodes(
 
     assert [application.postcode for application in filtered] == ["OX1 4RP"]
     assert filtered[0].inclusion_reason == "Hinksey Park + 0.25 miles"
+
+
+def test_filter_applications_by_ward_distance_keeps_only_exact_ward_matches(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Exact ward filtering should work locally from the shared weekly list."""
+    applications = [
+        application_factory(
+            address="South Oxford Community Centre Lake Street Oxford OX1 4RP"
+        ),
+        application_factory(
+            application_ref={"value": "26/00282/FUL"},
+            address="Littlemore Community Centre Giles Road Oxford OX4 4NL",
+        ),
+    ]
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.lookup_postcode_in_oxford_wards",
+        lambda postcode: type(
+            "LookupResult",
+            (),
+            {
+                "ward_name": (
+                    "Hinksey Park" if postcode == "OX1 4RP" else "Littlemore"
+                ),
+                "parish_name": None,
+            },
+        )(),
+    )
+
+    filtered = filter_applications_by_ward_distance(
+        applications,
+        query=PlanningQuery(ward_name="Hinksey Park"),
+    )
+
+    assert [application.postcode for application in filtered] == ["OX1 4RP"]
+    assert filtered[0].inclusion_reason is None
 
 
 def test_filter_applications_by_ward_distance_keeps_only_matching_parish_postcodes(
@@ -228,7 +349,10 @@ def test_fetch_latest_applications_does_not_hit_major_page_when_disabled(
     """Non-major runs should not request the Oxford major-applications page."""
     monkeypatch.setattr(
         "planning_update.services.scraper.collect_result_applications",
-        lambda session, *, query, cache_dir: ([application_factory()], "07 Apr 2026"),
+        lambda session, *, query, cache_dir, selected_week: (
+            [application_factory()],
+            "07 Apr 2026",
+        ),
     )
 
     def fail_fetch_major_applications_page(session: requests.Session) -> str:
@@ -300,6 +424,63 @@ def test_collect_result_applications_reuses_cached_weekly_results(
     assert fetch_results_calls == 1
 
 
+def test_collect_result_applications_fetches_the_whole_weekly_list(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
+) -> None:
+    """Weekly-list fetches should ignore ward/parish and cache the whole status/week pool."""
+    captured_payload: dict[str, str] | None = None
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_form",
+        lambda session: ("csrf-token", ["07 Apr 2026"]),
+    )
+
+    def fake_fetch_results_page(
+        session: requests.Session,
+        *,
+        query: PlanningQuery,
+        csrf_token: str,
+        week: str,
+    ) -> tuple[str, str]:
+        nonlocal captured_payload
+        captured_payload = query.build_search_payload(csrf_token=csrf_token, week=week)
+        return "<html></html>", "https://example.com/results"
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_results_page",
+        fake_fetch_results_page,
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_applications",
+        lambda html, week, page_url: [application_factory()],
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_pagination_urls",
+        lambda html, page_url: [],
+    )
+
+    applications, week = collect_result_applications(
+        requests.Session(),
+        query=PlanningQuery(
+            ward_name="Headington",
+            distance_around_ward_meters=241.402,
+            status_mode="validated",
+        ),
+        cache_dir=tmp_path,
+    )
+
+    assert applications == [application_factory()]
+    assert week == "07 Apr 2026"
+    assert captured_payload == {
+        "_csrf": "csrf-token",
+        "searchCriteria.parish": "",
+        "searchCriteria.ward": "",
+        "week": "07 Apr 2026",
+        "dateType": "DC_Validated",
+        "searchType": "Application",
+    }
+
+
 def test_fetch_latest_applications_cached_reuses_saved_results(
     application_factory: Callable[..., Application], monkeypatch, tmp_path
 ) -> None:
@@ -309,7 +490,7 @@ def test_fetch_latest_applications_cached_reuses_saved_results(
     fetch_calls = 0
 
     def fake_fetch_latest_applications(
-        _: PlanningQuery, *, cache_dir
+        _: PlanningQuery, *, cache_dir, selected_week
     ) -> tuple[list[Application], str]:
         nonlocal fetch_calls
         fetch_calls += 1
@@ -328,17 +509,13 @@ def test_fetch_latest_applications_cached_reuses_saved_results(
     assert fetch_calls == 1
 
 
-def test_fetch_applications_for_query_with_week_resolves_live_week_in_debug_mode(
+def test_fetch_applications_for_query_with_supplied_week_reuses_cached_results_in_debug_mode(
     application_factory: Callable[..., Application], monkeypatch, tmp_path
 ) -> None:
-    """Debug runs should still resolve and return the actual selected week."""
+    """Debug runs should reuse cached results and return the already-resolved week."""
     query = PlanningQuery(status_mode="validated")
     cached_applications = [application_factory()]
 
-    monkeypatch.setattr(
-        "planning_update.services.scraper.resolve_actual_week",
-        lambda query: "13 Apr 2026",
-    )
     monkeypatch.setattr(
         "planning_update.services.scraper.load_cached_applications",
         lambda query, *, cache_dir: cached_applications,
@@ -347,6 +524,7 @@ def test_fetch_applications_for_query_with_week_resolves_live_week_in_debug_mode
     applications, week = fetch_applications_for_query(
         query=query,
         debug=True,
+        actual_week="13 Apr 2026",
     )
 
     assert applications == cached_applications
@@ -361,7 +539,7 @@ def test_fetch_latest_applications_enriches_keyword_matches(
 
     monkeypatch.setattr(
         "planning_update.services.scraper.collect_result_applications",
-        lambda session, *, query, cache_dir: (
+        lambda session, *, query, cache_dir, selected_week: (
             [
                 application_factory(
                     application_ref={"value": "26/00281/FUL"},
@@ -410,7 +588,7 @@ def test_fetch_latest_applications_enriches_major_matches(
 
     monkeypatch.setattr(
         "planning_update.services.scraper.collect_result_applications",
-        lambda session, *, query, cache_dir: (
+        lambda session, *, query, cache_dir, selected_week: (
             [
                 application_factory(
                     application_ref={"value": "26/00281/FUL"},

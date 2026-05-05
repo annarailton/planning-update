@@ -99,12 +99,17 @@ Example:
 ```toml
 debug = true
 ward = ["churchill", "hinksey park"]
-parish = "Littlemore"
 status_mode = "validated"
+distance_around_ward = "0.25 miles"
+distance_around_parish = "0.4 km"
 keywords = "photovoltaics, heat pump, ASHP, PV"
 major = true
 email_to = "example@gmail.com"
 ```
+
+`distance_around_ward` and `distance_around_parish` are optional and default to
+`0`. They accept distance values with units such as `"0.25 miles"` or
+`"0.4 km"`.
 
 Examples with config:
 

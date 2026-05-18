@@ -518,8 +518,8 @@ def test_render_application_html_shows_committee_section_when_present() -> None:
     assert "2026-05-26" in html
     assert "Recommendation" in html
     assert "Approve" in html
-    assert "Agenda" in html
-    assert "View agenda" in html
+    assert "view whole agenda" in html
+    assert '<td class="field-label" valign="top">Agenda</td>' not in html
     assert (
         '<div class="eyebrow">25/03195/FUL <span class="eyebrow-separator">-</span> '
         '<span class="eyebrow-address">Mansfield College, Mansfield Road, Oxford</span></div>'
@@ -530,10 +530,13 @@ def test_render_application_html_shows_committee_section_when_present() -> None:
         in html
     )
     assert "View committee report" in html
+    assert "https://mycouncil.oxford.gov.uk/documents/s90588/report.pdf" in html
     assert html.index("Decided applications") < html.index(
         "Coming to next planning committee"
     )
-    assert html.index("Coming to next planning committee") < html.index("Search criteria")
+    assert html.index("Coming to next planning committee") < html.index(
+        "Search criteria"
+    )
 
 
 @pytest.mark.parametrize(

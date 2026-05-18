@@ -343,7 +343,11 @@ def render_application_html(
         cards: list[str] = []
         for application in items:
             fields = [
-                ("Committee date", format_application_date(application.committee_date), ""),
+                (
+                    "Committee date",
+                    format_application_date(application.committee_date),
+                    "",
+                ),
                 (
                     (
                         "Recommendation",
@@ -352,11 +356,6 @@ def render_application_html(
                     )
                     if application.recommendation
                     else None
-                ),
-                (
-                    "Agenda",
-                    f'<a href="{escape(application.agenda_url, quote=True)}">View agenda</a>',
-                    "",
                 ),
             ]
             fields = [field for field in fields if field is not None]
@@ -367,7 +366,8 @@ def render_application_html(
                     f'<div class="eyebrow">{escape(application.application_ref.value)}'
                     f' <span class="eyebrow-separator">-</span> <span class="eyebrow-address">{escape(application.address)}</span></div>'
                     f'<h2 class="card-title">{escape(application.proposal)}</h2>'
-                    f'<p class="link-row"><a href="{escape(application.report_url, quote=True)}">View committee report</a></p>'
+                    f'<p class="link-row"><a href="{escape(application.report_url, quote=True)}">View committee report</a>'
+                    f' <span class="eyebrow-separator">//</span> <a href="{escape(application.agenda_url, quote=True)}">view whole agenda</a></p>'
                     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="fields">'
                     f"{render_fields_table(fields)}"
                     "</table>"

@@ -24,6 +24,10 @@ def no_committee_applications(monkeypatch: pytest.MonkeyPatch) -> None:
         "planning_update.services.report_service.fetch_upcoming_committee_applications",
         lambda: [],
     )
+    monkeypatch.setattr(
+        "planning_update.services.report_service.fetch_upcoming_review_committee_applications",
+        lambda: [],
+    )
 
 
 def test_build_planning_report_builds_sections_for_both_statuses(
@@ -86,6 +90,7 @@ def test_build_planning_report_builds_sections_for_both_statuses(
         report.committee_section.empty_state_message
         == "No upcoming planning committee agenda released."
     )
+    assert report.review_committee_section is None
 
 
 def test_build_planning_report_keeps_results_when_later_location_query_is_empty(
@@ -165,6 +170,48 @@ def test_build_planning_report_adds_committee_section_when_agenda_items_exist(
     assert report.committee_section is not None
     assert report.committee_section.title == "Coming to next planning committee"
     assert report.committee_section.applications == [committee_application]
+
+
+def test_build_planning_report_adds_review_committee_section_when_agenda_items_exist(
+    application_factory: Callable[..., Application], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reports should include upcoming planning review committee applications."""
+    monkeypatch.setattr(
+        "planning_update.services.report_service.resolve_actual_week",
+        lambda query: "07 Apr 2026",
+    )
+    monkeypatch.setattr(
+        "planning_update.services.report_service.fetch_applications_for_query",
+        lambda *, query, debug, actual_week: ([application_factory()], "07 Apr 2026"),
+    )
+    review_application = CommitteeApplication(
+        application_ref={"value": "25/03195/FUL"},
+        committee_date="26 May 2026",
+        proposal="Review committee proposal.",
+        address="Town Hall, Oxford",
+        agenda_url="https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=147&MId=9000&Ver=4",
+        report_url="https://mycouncil.oxford.gov.uk/documents/review-report.pdf",
+        recommendation="Approve",
+    )
+    monkeypatch.setattr(
+        "planning_update.services.report_service.fetch_upcoming_review_committee_applications",
+        lambda: [review_application],
+    )
+
+    report = build_planning_report(
+        options=ResolvedCliOptions(
+            debug=False,
+            status_mode="validated",
+            queries=[PlanningQuery(status_mode="validated")],
+        )
+    )
+
+    assert report.review_committee_section is not None
+    assert (
+        report.review_committee_section.title
+        == "Coming to next planning REVIEW committee"
+    )
+    assert report.review_committee_section.applications == [review_application]
 
 
 def test_build_planning_report_marks_unsearched_section(

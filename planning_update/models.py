@@ -473,3 +473,4 @@ class PlanningReport(BaseModel):
     sections: list[ApplicationSection]
     actual_week: str | None = None
     committee_section: CommitteeSection | None = None
+    review_committee_section: CommitteeSection | None = None

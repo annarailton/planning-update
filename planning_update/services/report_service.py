@@ -7,7 +7,10 @@ from ..models import (
     PlanningReport,
     ResolvedCliOptions,
 )
-from .committee import fetch_upcoming_committee_applications
+from .committee import (
+    fetch_upcoming_committee_applications,
+    fetch_upcoming_review_committee_applications,
+)
 from .oxford_planning_client import resolve_actual_week
 from .scraper import fetch_applications_for_query
 
@@ -119,9 +122,18 @@ def build_planning_report(*, options: ResolvedCliOptions) -> PlanningReport:
         applications_by_status["validated"] + applications_by_status["decided"]
     )
     committee_applications = fetch_upcoming_committee_applications()
+    review_committee_applications = fetch_upcoming_review_committee_applications()
     return PlanningReport(
         applications=applications,
         sections=sections,
         actual_week=actual_week,
         committee_section=CommitteeSection(applications=committee_applications),
+        review_committee_section=(
+            CommitteeSection(
+                title="Coming to next planning REVIEW committee",
+                applications=review_committee_applications,
+            )
+            if review_committee_applications
+            else None
+        ),
     )

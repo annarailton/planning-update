@@ -201,7 +201,7 @@ def extract_future_agenda_urls(
         meeting_date = parse_committee_meeting_date(
             normalize_space(link.get_text(" ", strip=True))
         )
-        if meeting_date is None or meeting_date < today:
+        if meeting_date is None or meeting_date <= today:
             continue
 
         meetings.append((meeting_date, urljoin(COMMITTEE_BASE_URL, link["href"])))

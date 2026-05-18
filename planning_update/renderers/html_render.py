@@ -171,6 +171,8 @@ def build_search_criteria(
     )
     ward_names = list(
         dict.fromkeys(
+            # Distance-buffered ward searches intentionally send no ward code
+            # to Oxford, so display the configured ward names instead.
             query.resolved_ward_name()
             for query in location_queries
             if query.ward_name is not None

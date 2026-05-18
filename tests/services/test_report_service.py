@@ -80,7 +80,12 @@ def test_build_planning_report_builds_sections_for_both_statuses(
         "26/00282/FUL",
     ]
     assert report.actual_week == "07 Apr 2026"
-    assert report.committee_section is None
+    assert report.committee_section is not None
+    assert report.committee_section.applications == []
+    assert (
+        report.committee_section.empty_state_message
+        == "No upcoming planning committee agenda released."
+    )
 
 
 def test_build_planning_report_keeps_results_when_later_location_query_is_empty(

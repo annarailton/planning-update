@@ -123,9 +123,5 @@ def build_planning_report(*, options: ResolvedCliOptions) -> PlanningReport:
         applications=applications,
         sections=sections,
         actual_week=actual_week,
-        committee_section=(
-            CommitteeSection(applications=committee_applications)
-            if committee_applications
-            else None
-        ),
+        committee_section=CommitteeSection(applications=committee_applications),
     )

@@ -188,6 +188,7 @@ class CommitteeSection(BaseModel):
 
     title: str = "Coming to next planning committee"
     applications: list[CommitteeApplication]
+    empty_state_message: str = "No upcoming planning committee agenda released."
 
 
 class PlanningQuery(BaseModel):

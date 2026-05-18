@@ -105,6 +105,19 @@ def test_build_plain_text_email_includes_committee_recommendation() -> None:
     assert "Agenda: https://mycouncil.oxford.gov.uk/agenda" in text
 
 
+def test_build_plain_text_email_includes_empty_committee_message() -> None:
+    """Plain text email should show the committee empty state."""
+    text = email_sender.build_plain_text_email(
+        applications=[],
+        committee_section=CommitteeSection(applications=[]),
+        generated_at=datetime(2026, 4, 13, 9, 30),
+        search_criteria=None,
+    )
+
+    assert "Coming to next planning committee" in text
+    assert "No upcoming planning committee agenda released." in text
+
+
 def test_build_idempotency_key_is_stable_for_same_payload() -> None:
     """Idempotency key should be stable for the same payload."""
     first = email_sender.build_idempotency_key(

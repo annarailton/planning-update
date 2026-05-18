@@ -616,11 +616,12 @@ def test_render_application_html_colours_committee_recommendations(
     )
 
 
-def test_render_application_html_omits_empty_committee_section() -> None:
-    """The committee section should not appear when there are no agenda items."""
+def test_render_application_html_shows_empty_committee_section() -> None:
+    """The committee section should show an empty state when no agenda is released."""
     html = html_render.render_application_html(
         [],
         committee_section=CommitteeSection(applications=[]),
     )
 
-    assert "Coming to next planning committee" not in html
+    assert "Coming to next planning committee" in html
+    assert "No upcoming planning committee agenda released." in html

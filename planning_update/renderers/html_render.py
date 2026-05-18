@@ -419,10 +419,17 @@ def render_application_html(
         rendered_sections = render_cards(applications)
 
     rendered_committee_section = ""
-    if committee_section and committee_section.applications:
+    if committee_section:
         rendered_committee_section = (
             f'<h2 class="section-title">{escape(committee_section.title)}</h2>'
-            f"{render_committee_cards(committee_section.applications)}"
+            + (
+                render_committee_cards(committee_section.applications)
+                if committee_section.applications
+                else render_cards(
+                    [],
+                    empty_state_message=committee_section.empty_state_message,
+                )
+            )
         )
 
     criteria_fields = ""

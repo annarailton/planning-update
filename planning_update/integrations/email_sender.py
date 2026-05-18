@@ -87,24 +87,27 @@ def build_plain_text_email(
     else:
         append_application_details(applications)
 
-    if committee_section and committee_section.applications:
+    if committee_section:
         lines.extend(["", committee_section.title])
-        for application in committee_section.applications:
-            details = [
-                "",
-                application.application_ref.value,
-                application.proposal,
-                f"Committee date: {application.committee_date.isoformat()}",
-            ]
-            if application.recommendation:
-                details.append(f"Recommendation: {application.recommendation}")
-            details.extend(
-                [
-                    f"Agenda: {application.agenda_url}",
-                    f"View committee report: {application.report_url}",
+        if committee_section.applications:
+            for application in committee_section.applications:
+                details = [
+                    "",
+                    application.application_ref.value,
+                    application.proposal,
+                    f"Committee date: {application.committee_date.isoformat()}",
                 ]
-            )
-            lines.extend(details)
+                if application.recommendation:
+                    details.append(f"Recommendation: {application.recommendation}")
+                details.extend(
+                    [
+                        f"Agenda: {application.agenda_url}",
+                        f"View committee report: {application.report_url}",
+                    ]
+                )
+                lines.extend(details)
+        else:
+            lines.append(committee_section.empty_state_message)
 
     lines.extend(["", f"Generated {format_generated_timestamp(generated_at)}"])
     return "\n".join(lines)

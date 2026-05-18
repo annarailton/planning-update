@@ -19,7 +19,13 @@ from ..constants import (
     TEXT_TERTIARY_COLOR,
     WARNING_COLOR,
 )
-from ..models import Application, ApplicationSection, ResolvedCliOptions
+from ..models import (
+    Application,
+    ApplicationSection,
+    CommitteeApplication,
+    CommitteeSection,
+    ResolvedCliOptions,
+)
 
 
 def current_date() -> date:
@@ -73,6 +79,15 @@ def decision_css_class(decision: str | None) -> str:
     }:
         return " field-value--decision-approved"
     if decision in {"Rejected", "Application Withdrawn"}:
+        return " field-value--decision-rejected"
+    return ""
+
+
+def recommendation_css_class(recommendation: str | None) -> str:
+    """Return a modifier CSS class for known committee recommendation values."""
+    if recommendation == "Approve":
+        return " field-value--decision-approved"
+    if recommendation == "Refuse":
         return " field-value--decision-rejected"
     return ""
 
@@ -195,6 +210,7 @@ def render_application_html(
     applications: list[Application],
     *,
     sections: list[ApplicationSection] | None = None,
+    committee_section: CommitteeSection | None = None,
     search_criteria: dict[str, str] | None = None,
     today: date | None = None,
 ) -> str:
@@ -323,6 +339,44 @@ def render_application_html(
             )
         return "".join(cards)
 
+    def render_committee_cards(items: list[CommitteeApplication]) -> str:
+        cards: list[str] = []
+        for application in items:
+            fields = [
+                ("Committee date", format_application_date(application.committee_date), ""),
+                (
+                    (
+                        "Recommendation",
+                        escape(application.recommendation),
+                        recommendation_css_class(application.recommendation),
+                    )
+                    if application.recommendation
+                    else None
+                ),
+                (
+                    "Agenda",
+                    f'<a href="{escape(application.agenda_url, quote=True)}">View agenda</a>',
+                    "",
+                ),
+            ]
+            fields = [field for field in fields if field is not None]
+            cards.append(
+                (
+                    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="card">'
+                    "<tr><td>"
+                    f'<div class="eyebrow">{escape(application.application_ref.value)}'
+                    f' <span class="eyebrow-separator">-</span> <span class="eyebrow-address">{escape(application.address)}</span></div>'
+                    f'<h2 class="card-title">{escape(application.proposal)}</h2>'
+                    f'<p class="link-row"><a href="{escape(application.report_url, quote=True)}">View committee report</a></p>'
+                    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="fields">'
+                    f"{render_fields_table(fields)}"
+                    "</table>"
+                    "</td></tr>"
+                    "</table>"
+                )
+            )
+        return "".join(cards)
+
     rendered_sections = ""
     if sections:
         rendered_sections = "".join(
@@ -341,6 +395,13 @@ def render_application_html(
         )
     else:
         rendered_sections = render_cards(applications)
+
+    rendered_committee_section = ""
+    if committee_section and committee_section.applications:
+        rendered_committee_section = (
+            f'<h2 class="section-title">{escape(committee_section.title)}</h2>'
+            f"{render_committee_cards(committee_section.applications)}"
+        )
 
     criteria_fields = ""
     if search_criteria:
@@ -434,6 +495,7 @@ def render_application_html(
         "<h1>Oxford Planning Applications</h1>"
         f'<p class="summary">Found {len(applications)} application{"s" if len(applications) != 1 else ""}.</p>'
         f"{rendered_sections}"
+        f"{rendered_committee_section}"
         '<h2 class="section-title">Search criteria</h2>'
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="criteria"><tr><td class="criteria-cell">'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="criteria-list">{criteria_fields}</table>'

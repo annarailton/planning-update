@@ -7,7 +7,10 @@ import pytest
 
 from planning_update.models import (
     Application,
+    ApplicationRef,
     ApplicationSection,
+    CommitteeApplication,
+    CommitteeSection,
     PlanningQuery,
     ResolvedCliOptions,
 )
@@ -484,3 +487,105 @@ def test_render_application_html_renders_both_empty_sections() -> None:
     assert "Decided applications" in html
     assert "Validated and decided in this week" in html
     assert "No applications" in html
+
+
+def test_render_application_html_shows_committee_section_when_present() -> None:
+    """Upcoming committee applications should render below weekly-list sections."""
+    html = html_render.render_application_html(
+        [],
+        sections=[
+            ApplicationSection(title="Validated applications", applications=[]),
+            ApplicationSection(title="Decided applications", applications=[]),
+        ],
+        committee_section=CommitteeSection(
+            applications=[
+                CommitteeApplication(
+                    application_ref=ApplicationRef(value="25/03195/FUL"),
+                    committee_date=date(2026, 5, 26),
+                    proposal="Demolition and replacement building.",
+                    address="Mansfield College, Mansfield Road, Oxford",
+                    agenda_url="https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=568&MId=8165&Ver=4",
+                    report_url="https://mycouncil.oxford.gov.uk/documents/s90588/report.pdf",
+                    recommendation="Approve",
+                )
+            ]
+        ),
+    )
+
+    assert "Coming to next planning committee" in html
+    assert "25/03195/FUL" in html
+    assert "Committee date" in html
+    assert "2026-05-26" in html
+    assert "Recommendation" in html
+    assert "Approve" in html
+    assert "Agenda" in html
+    assert "View agenda" in html
+    assert (
+        '<div class="eyebrow">25/03195/FUL <span class="eyebrow-separator">-</span> '
+        '<span class="eyebrow-address">Mansfield College, Mansfield Road, Oxford</span></div>'
+        in html
+    )
+    assert (
+        "https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=568&amp;MId=8165&amp;Ver=4"
+        in html
+    )
+    assert "View committee report" in html
+    assert html.index("Decided applications") < html.index(
+        "Coming to next planning committee"
+    )
+    assert html.index("Coming to next planning committee") < html.index("Search criteria")
+
+
+@pytest.mark.parametrize(
+    ("recommendation", "css_class", "css_rule"),
+    [
+        (
+            "Approve",
+            "field-value--decision-approved",
+            ".field-value--decision-approved{color:var(--color-success);",
+        ),
+        (
+            "Refuse",
+            "field-value--decision-rejected",
+            ".field-value--decision-rejected{color:var(--color-danger);",
+        ),
+    ],
+)
+def test_render_application_html_colours_committee_recommendations(
+    recommendation: str,
+    css_class: str,
+    css_rule: str,
+) -> None:
+    """Committee recommendation values should use the expected styling."""
+    html = html_render.render_application_html(
+        [],
+        committee_section=CommitteeSection(
+            applications=[
+                CommitteeApplication(
+                    application_ref=ApplicationRef(value="25/03195/FUL"),
+                    committee_date=date(2026, 5, 26),
+                    proposal="Demolition and replacement building.",
+                    address="Mansfield College, Mansfield Road, Oxford",
+                    agenda_url="https://mycouncil.oxford.gov.uk/agenda",
+                    report_url="https://mycouncil.oxford.gov.uk/report.pdf",
+                    recommendation=recommendation,
+                )
+            ]
+        ),
+    )
+
+    assert css_rule in html
+    assert (
+        f'<td class="field-value {css_class}" valign="top">{recommendation}</td>'
+        in html
+    )
+
+
+def test_render_application_html_omits_empty_committee_section() -> None:
+    """The committee section should not appear when there are no agenda items."""
+    html = html_render.render_application_html(
+        [],
+        committee_section=CommitteeSection(applications=[]),
+    )
+
+    assert "Coming to next planning committee" not in html

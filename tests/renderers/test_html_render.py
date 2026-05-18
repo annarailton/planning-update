@@ -571,6 +571,38 @@ def test_render_application_html_shows_committee_section_when_present() -> None:
     )
 
 
+def test_render_application_html_shows_review_committee_section_when_present() -> None:
+    """Upcoming review committee applications should render before search criteria."""
+    html = html_render.render_application_html(
+        [],
+        review_committee_section=CommitteeSection(
+            title="Coming to next planning REVIEW committee",
+            applications=[
+                CommitteeApplication(
+                    application_ref=ApplicationRef(value="25/03195/FUL"),
+                    committee_date=date(2026, 5, 26),
+                    proposal="Review committee proposal.",
+                    address="Town Hall, Oxford",
+                    agenda_url="https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=147&MId=9000&Ver=4",
+                    report_url="https://mycouncil.oxford.gov.uk/documents/review-report.pdf",
+                    recommendation="Approve",
+                )
+            ],
+        ),
+    )
+
+    assert "Coming to next planning REVIEW committee" in html
+    assert "Review committee proposal." in html
+    assert "https://mycouncil.oxford.gov.uk/documents/review-report.pdf" in html
+    assert (
+        "https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=147&amp;MId=9000&amp;Ver=4"
+        in html
+    )
+    assert html.index("Coming to next planning REVIEW committee") < html.index(
+        "Search criteria"
+    )
+
+
 @pytest.mark.parametrize(
     ("recommendation", "css_class", "css_rule"),
     [

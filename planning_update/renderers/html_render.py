@@ -233,6 +233,7 @@ def render_application_html(
     *,
     sections: list[ApplicationSection] | None = None,
     committee_section: CommitteeSection | None = None,
+    review_committee_section: CommitteeSection | None = None,
     search_criteria: dict[str, str] | None = None,
     today: date | None = None,
 ) -> str:
@@ -418,19 +419,22 @@ def render_application_html(
     else:
         rendered_sections = render_cards(applications)
 
-    rendered_committee_section = ""
-    if committee_section:
-        rendered_committee_section = (
-            f'<h2 class="section-title">{escape(committee_section.title)}</h2>'
-            + (
-                render_committee_cards(committee_section.applications)
-                if committee_section.applications
-                else render_cards(
-                    [],
-                    empty_state_message=committee_section.empty_state_message,
-                )
+    def render_committee_section(section: CommitteeSection | None) -> str:
+        if section is None:
+            return ""
+        return f'<h2 class="section-title">{escape(section.title)}</h2>' + (
+            render_committee_cards(section.applications)
+            if section.applications
+            else render_cards(
+                [],
+                empty_state_message=section.empty_state_message,
             )
         )
+
+    rendered_committee_section = render_committee_section(committee_section)
+    rendered_review_committee_section = render_committee_section(
+        review_committee_section
+    )
 
     criteria_fields = ""
     if search_criteria:
@@ -525,6 +529,7 @@ def render_application_html(
         f'<p class="summary">Found {len(applications)} application{"s" if len(applications) != 1 else ""}.</p>'
         f"{rendered_sections}"
         f"{rendered_committee_section}"
+        f"{rendered_review_committee_section}"
         '<h2 class="section-title">Search criteria</h2>'
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="criteria"><tr><td class="criteria-cell">'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="criteria-list">{criteria_fields}</table>'

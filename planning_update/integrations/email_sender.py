@@ -29,6 +29,7 @@ def build_plain_text_email(
     generated_at: datetime,
     search_criteria: dict[str, str] | None,
     committee_section: CommitteeSection | None = None,
+    review_committee_section: CommitteeSection | None = None,
 ) -> str:
     """Build a plain-text fallback version of the planning update email."""
     lines = [
@@ -87,10 +88,12 @@ def build_plain_text_email(
     else:
         append_application_details(applications)
 
-    if committee_section:
-        lines.extend(["", committee_section.title])
-        if committee_section.applications:
-            for application in committee_section.applications:
+    for rendered_committee_section in [committee_section, review_committee_section]:
+        if rendered_committee_section is None:
+            continue
+        lines.extend(["", rendered_committee_section.title])
+        if rendered_committee_section.applications:
+            for application in rendered_committee_section.applications:
                 details = [
                     "",
                     application.application_ref.value,
@@ -107,7 +110,7 @@ def build_plain_text_email(
                 )
                 lines.extend(details)
         else:
-            lines.append(committee_section.empty_state_message)
+            lines.append(rendered_committee_section.empty_state_message)
 
     lines.extend(["", f"Generated {format_generated_timestamp(generated_at)}"])
     return "\n".join(lines)

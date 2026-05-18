@@ -105,6 +105,33 @@ def test_build_plain_text_email_includes_committee_recommendation() -> None:
     assert "Agenda: https://mycouncil.oxford.gov.uk/agenda" in text
 
 
+def test_build_plain_text_email_includes_review_committee_section() -> None:
+    """Plain text email should include planning review committee applications."""
+    text = email_sender.build_plain_text_email(
+        applications=[],
+        review_committee_section=CommitteeSection(
+            title="Coming to next planning REVIEW committee",
+            applications=[
+                CommitteeApplication(
+                    application_ref=ApplicationRef(value="25/03195/FUL"),
+                    committee_date="26 May 2026",
+                    proposal="Review committee proposal.",
+                    address="Town Hall, Oxford",
+                    agenda_url="https://mycouncil.oxford.gov.uk/review-agenda",
+                    report_url="https://mycouncil.oxford.gov.uk/review-report.pdf",
+                    recommendation="Approve",
+                )
+            ],
+        ),
+        generated_at=datetime(2026, 4, 13, 9, 30),
+        search_criteria=None,
+    )
+
+    assert "Coming to next planning REVIEW committee" in text
+    assert "Review committee proposal." in text
+    assert "Agenda: https://mycouncil.oxford.gov.uk/review-agenda" in text
+
+
 def test_build_plain_text_email_includes_empty_committee_message() -> None:
     """Plain text email should show the committee empty state."""
     text = email_sender.build_plain_text_email(

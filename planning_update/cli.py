@@ -165,6 +165,7 @@ def run(
         report.applications,
         sections=report.sections,
         committee_section=report.committee_section,
+        review_committee_section=report.review_committee_section,
         search_criteria=search_criteria,
     )
 
@@ -183,6 +184,7 @@ def run(
             applications=report.applications,
             sections=report.sections,
             committee_section=report.committee_section,
+            review_committee_section=report.review_committee_section,
             generated_at=generated_at,
             search_criteria=search_criteria,
         )

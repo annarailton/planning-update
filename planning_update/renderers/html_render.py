@@ -173,7 +173,7 @@ def build_search_criteria(
         dict.fromkeys(
             query.resolved_ward_name()
             for query in location_queries
-            if query.resolve_ward_code()
+            if query.ward_name is not None
         )
     )
 

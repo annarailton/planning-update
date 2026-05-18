@@ -306,11 +306,13 @@ def test_build_search_criteria_uses_plural_wards_for_multiple_location_queries()
             queries=[
                 PlanningQuery(
                     ward_name="churchill",
+                    distance_around_ward_meters=402.336,
                     distance_around_ward_label="0.25 miles",
                     status_mode="validated",
                 ),
                 PlanningQuery(
                     ward_name="hinksey park",
+                    distance_around_ward_meters=402.336,
                     distance_around_ward_label="0.25 miles",
                     status_mode="validated",
                 ),

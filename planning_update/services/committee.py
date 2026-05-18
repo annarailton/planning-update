@@ -1,5 +1,6 @@
 """Scraping workflow for Coming to next planning committee agenda applications."""
 
+from collections.abc import Callable
 from datetime import date
 
 import requests
@@ -9,6 +10,7 @@ from ..parsing.parser import extract_committee_applications, extract_future_agen
 from .oxford_planning_client import (
     fetch_planning_committee_agenda_page,
     fetch_planning_committee_meetings_page,
+    fetch_planning_review_committee_meetings_page,
 )
 
 
@@ -22,11 +24,34 @@ def fetch_upcoming_committee_applications(
     today: date | None = None,
 ) -> list[CommitteeApplication]:
     """Fetch applications from the next future Planning Committee agenda."""
+    return fetch_upcoming_applications_from_meetings_page(
+        meetings_page_fetcher=fetch_planning_committee_meetings_page,
+        today=today,
+    )
+
+
+def fetch_upcoming_review_committee_applications(
+    *,
+    today: date | None = None,
+) -> list[CommitteeApplication]:
+    """Fetch applications from the next future Planning Review Committee agenda."""
+    return fetch_upcoming_applications_from_meetings_page(
+        meetings_page_fetcher=fetch_planning_review_committee_meetings_page,
+        today=today,
+    )
+
+
+def fetch_upcoming_applications_from_meetings_page(
+    *,
+    meetings_page_fetcher: Callable[[requests.Session], str],
+    today: date | None = None,
+) -> list[CommitteeApplication]:
+    """Fetch applications from the next future agenda listed on a meetings page."""
     render_today = today or current_date()
     session = requests.Session()
     session.headers.update({"User-Agent": "planning-update/0.1"})
 
-    meetings_html = fetch_planning_committee_meetings_page(session)
+    meetings_html = meetings_page_fetcher(session)
     future_agenda_urls = extract_future_agenda_urls(
         meetings_html,
         today=render_today,

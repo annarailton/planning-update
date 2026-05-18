@@ -11,6 +11,7 @@ from ..constants import (
     DEFAULT_TIMEOUT_SECONDS,
     MAJOR_APPLICATIONS_URL,
     PLANNING_COMMITTEE_MEETINGS_URL,
+    PLANNING_REVIEW_COMMITTEE_MEETINGS_URL,
     RATE_LIMIT_INITIAL_BACKOFF_SECONDS,
     RATE_LIMIT_STATUS_CODES,
     RESULTS_URL,
@@ -191,6 +192,17 @@ def fetch_planning_committee_meetings_page(session: requests.Session) -> str:
         session,
         method="GET",
         url=PLANNING_COMMITTEE_MEETINGS_URL,
+        timeout=DEFAULT_TIMEOUT_SECONDS,
+    )
+    return response.text
+
+
+def fetch_planning_review_committee_meetings_page(session: requests.Session) -> str:
+    """Fetch the Planning Review Committee meetings list page."""
+    response = request_with_backoff(
+        session,
+        method="GET",
+        url=PLANNING_REVIEW_COMMITTEE_MEETINGS_URL,
         timeout=DEFAULT_TIMEOUT_SECONDS,
     )
     return response.text

@@ -34,6 +34,9 @@ COMMITTEE_BASE_URL = "https://mycouncil.oxford.gov.uk"
 PLANNING_COMMITTEE_MEETINGS_URL = (
     "https://mycouncil.oxford.gov.uk/ieListMeetings.aspx?CId=568&Year=0"
 )
+PLANNING_REVIEW_COMMITTEE_MEETINGS_URL = (
+    "https://mycouncil.oxford.gov.uk/ieListMeetings.aspx?CId=147&Year=0"
+)
 DEFAULT_TIMEOUT_SECONDS = 30
 RETRY_MAX_RETRIES = 4
 RETRY_INITIAL_BACKOFF_SECONDS = 2.0

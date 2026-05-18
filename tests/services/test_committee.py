@@ -4,7 +4,10 @@ from datetime import date
 
 import pytest
 
-from planning_update.services.committee import fetch_upcoming_committee_applications
+from planning_update.services.committee import (
+    fetch_upcoming_committee_applications,
+    fetch_upcoming_review_committee_applications,
+)
 
 
 @pytest.mark.parametrize(
@@ -109,4 +112,54 @@ def test_fetch_upcoming_committee_applications_acts_only_for_future_agendas(
     ]
     assert [application.recommendation for application in applications] == [
         "Approve" for _ in expected_refs
+    ]
+
+
+def test_fetch_upcoming_review_committee_applications_uses_review_meetings_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Planning review committee scraping should use the review meetings list."""
+    meetings_html = """
+    <ul>
+      <li><a class="mgMeetingTableLnk" href="ieListDocuments.aspx?CId=147&amp;MId=9000&amp;Ver=4">26 May 2026&nbsp;6.00 pm</a> - Agenda</li>
+    </ul>
+    """
+    fetched_agendas: list[str] = []
+
+    monkeypatch.setattr(
+        "planning_update.services.committee.fetch_planning_review_committee_meetings_page",
+        lambda session: meetings_html,
+    )
+
+    def fake_fetch_agenda(session, agenda_url: str) -> tuple[str, str]:
+        fetched_agendas.append(agenda_url)
+        return (
+            """
+            <table id="mgItemTable">
+              <tr>
+                <td>
+                  <p><a class="mgAiTitleLnk" href="documents/review-report.pdf">25/03195/FUL Review report</a></p>
+                  <p><b>Site address:</b> Town Hall, Oxford</p>
+                  <p><b>Proposal:</b> Review committee proposal.</p>
+                  <p><b>RECOMMENDATION</b></p>
+                  <p><b>Approve the application</b></p>
+                </td>
+              </tr>
+            </table>
+            """,
+            agenda_url,
+        )
+
+    monkeypatch.setattr(
+        "planning_update.services.committee.fetch_planning_committee_agenda_page",
+        fake_fetch_agenda,
+    )
+
+    applications = fetch_upcoming_review_committee_applications(today=date(2026, 5, 18))
+
+    assert fetched_agendas == [
+        "https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=147&MId=9000&Ver=4"
+    ]
+    assert [application.application_ref.value for application in applications] == [
+        "25/03195/FUL"
     ]

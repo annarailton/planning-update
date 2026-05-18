@@ -2,9 +2,12 @@
 
 from collections.abc import Callable
 
+import pytest
+
 from planning_update.models import (
     Application,
     CliStatusMode,
+    CommitteeApplication,
     PlanningQuery,
     ResolvedCliOptions,
 )
@@ -12,6 +15,15 @@ from planning_update.services.report_service import (
     build_planning_report,
     merge_applications,
 )
+
+
+@pytest.fixture(autouse=True)
+def no_committee_applications(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep report-service tests focused on weekly-list orchestration by default."""
+    monkeypatch.setattr(
+        "planning_update.services.report_service.fetch_upcoming_committee_applications",
+        lambda: [],
+    )
 
 
 def test_build_planning_report_builds_sections_for_both_statuses(
@@ -68,6 +80,46 @@ def test_build_planning_report_builds_sections_for_both_statuses(
         "26/00282/FUL",
     ]
     assert report.actual_week == "07 Apr 2026"
+    assert report.committee_section is None
+
+
+def test_build_planning_report_adds_committee_section_when_agenda_items_exist(
+    application_factory: Callable[..., Application], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reports should include upcoming committee applications when found."""
+    monkeypatch.setattr(
+        "planning_update.services.report_service.resolve_actual_week",
+        lambda query: "07 Apr 2026",
+    )
+    monkeypatch.setattr(
+        "planning_update.services.report_service.fetch_applications_for_query",
+        lambda *, query, debug, actual_week: ([application_factory()], "07 Apr 2026"),
+    )
+    committee_application = CommitteeApplication(
+        application_ref={"value": "25/03195/FUL"},
+        committee_date="26 May 2026",
+        proposal="Demolition and replacement building.",
+        address="Mansfield College, Mansfield Road, Oxford",
+        agenda_url="https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=568&MId=8165&Ver=4",
+        report_url="https://mycouncil.oxford.gov.uk/documents/s90588/report.pdf",
+        recommendation="Approve",
+    )
+    monkeypatch.setattr(
+        "planning_update.services.report_service.fetch_upcoming_committee_applications",
+        lambda: [committee_application],
+    )
+
+    report = build_planning_report(
+        options=ResolvedCliOptions(
+            debug=False,
+            status_mode="validated",
+            queries=[PlanningQuery(status_mode="validated")],
+        )
+    )
+
+    assert report.committee_section is not None
+    assert report.committee_section.title == "Coming to next planning committee"
+    assert report.committee_section.applications == [committee_application]
 
 
 def test_build_planning_report_marks_unsearched_section(

@@ -158,6 +158,38 @@ class Application(BaseModel):
         return f"{compact_postcode[:-3]} {compact_postcode[-3:]}"
 
 
+class CommitteeApplication(BaseModel):
+    """A planning application listed on an upcoming committee agenda."""
+
+    application_ref: ApplicationRef
+    committee_date: date
+    proposal: str
+    address: str
+    agenda_url: str
+    report_url: str
+    recommendation: str | None = None
+
+    @field_validator("committee_date", mode="before")
+    @classmethod
+    def validate_committee_date(cls, v: str | date) -> date:
+        """Validate and parse committee meeting dates."""
+        if isinstance(v, date):
+            return v
+        if not v.strip():
+            raise ValueError("Committee date cannot be empty")
+        try:
+            return datetime.strptime(v, "%d %b %Y").date()
+        except ValueError:
+            return date.fromisoformat(v)
+
+
+class CommitteeSection(BaseModel):
+    """Coming to next planning committee applications for rendered output."""
+
+    title: str = "Coming to next planning committee"
+    applications: list[CommitteeApplication]
+
+
 class PlanningQuery(BaseModel):
     """User-facing query options for the weekly list search.
 
@@ -439,3 +471,4 @@ class PlanningReport(BaseModel):
     applications: list[Application]
     sections: list[ApplicationSection]
     actual_week: str | None = None
+    committee_section: CommitteeSection | None = None

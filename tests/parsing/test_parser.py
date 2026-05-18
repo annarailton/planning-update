@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 
 from planning_update.parsing.parser import (
     extract_committee_applications,
+    extract_committee_recommendation,
     extract_form_values,
     extract_future_agenda_urls,
     extract_major_application_refs,
@@ -308,3 +309,42 @@ def test_extract_committee_applications_reads_refusal_recommendation() -> None:
         "Unit 11, Kings Meadow, Ferry Hinksey Road, Oxford"
     )
     assert applications[0].recommendation == "Refuse"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_recommendation"),
+    [
+        pytest.param(
+            (
+                "RECOMMENDATION Oxford City Planning Committee is recommended to: "
+                "Approve the application for the reasons given in the report."
+            ),
+            "Approve",
+            id="approve",
+        ),
+        pytest.param(
+            (
+                "RECOMMENDATION Oxford City Planning Committee is recommended to: "
+                "Refuse the application for the reasons given in the report."
+            ),
+            "Refuse",
+            id="refuse",
+        ),
+        pytest.param(
+            "Proposal: Change of use to a day nursery.",
+            None,
+            id="missing-recommendation",
+        ),
+        pytest.param(
+            "RECOMMENDATION Oxford City Planning Committee is recommended to consider the report.",
+            None,
+            id="no-known-action",
+        ),
+    ],
+)
+def test_extract_committee_recommendation(
+    text: str,
+    expected_recommendation: str | None,
+) -> None:
+    """Recommendation parsing should return only known short actions."""
+    assert extract_committee_recommendation(text) == expected_recommendation

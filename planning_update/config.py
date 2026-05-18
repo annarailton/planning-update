@@ -90,8 +90,8 @@ def resolve_cli_options(
     | Input mode    | Query scopes                                                           |
     | ------------- | ---------------------------------------------------------------------- |
     | keyword only  | One all-ward/all-parish keyword scope                                  |
-    | location only | One location-filtered scope                                            |
-    | both          | One all-ward/all-parish keyword scope plus one location-filtered scope |
+    | location only | One scope per configured ward plus one scope for a configured parish   |
+    | both          | Location scopes plus one all-ward/all-parish keyword scope             |
 
     If we have both we do the location-filtered queries first.
     """
@@ -119,26 +119,37 @@ def resolve_cli_options(
         raise ValueError("distance_around_parish requires a parish.")
 
     query_variants: list[dict[str, object]] = []
+    for ward_name in ward_names:
+        query_variants.append(
+            {
+                "ward_name": ward_name,
+                "requested_week": requested_week,
+                "distance_around_ward_meters": distance_around_ward_meters,
+                "distance_around_ward_label": distance_around_ward_label,
+            }
+        )
+    if parish_name is not None:
+        query_variants.append(
+            {
+                "parish_name": parish_name,
+                "requested_week": requested_week,
+                "distance_around_parish_meters": distance_around_parish_meters,
+                "distance_around_parish_label": distance_around_parish_label,
+            }
+        )
     if (
-        ward_names
-        or parish_name is not None
-        or (not keywords and (not major or status_mode == "decided"))
+        not ward_names
+        and parish_name is None
+        and not keywords
+        and (not major or status_mode == "decided")
     ):
-        # Add an explicit location-filtered query when requested, or fall back to
-        # the default all-ward/all-parish query when no keyword/major scope exists.
-        location_ward_names = ward_names or [None]
-        for ward_name in location_ward_names:
-            query_variants.append(
-                {
-                    "ward_name": ward_name,
-                    "parish_name": parish_name,
-                    "requested_week": requested_week,
-                    "distance_around_ward_meters": distance_around_ward_meters,
-                    "distance_around_parish_meters": distance_around_parish_meters,
-                    "distance_around_ward_label": distance_around_ward_label,
-                    "distance_around_parish_label": distance_around_parish_label,
-                }
-            )
+        # Fall back to the default all-ward/all-parish query when no other
+        # weekly-list scope exists.
+        query_variants.append(
+            {
+                "requested_week": requested_week,
+            }
+        )
     if keywords:
         # Keyword searches always run across all wards/parishes.
         query_variants.append(

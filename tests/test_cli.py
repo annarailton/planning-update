@@ -604,12 +604,16 @@ def test_cli_uses_explicit_config_file(
     )
 
     def fake_build_planning_report(*, options) -> PlanningReport:
-        assert len(options.queries) == 1
-        query = options.queries[0]
-        assert query.ward_name == "churchill"
-        assert query.parish_name == "Littlemore"
-        assert query.status_mode == "decided"
-        assert query.major is False
+        assert options.queries == [
+            PlanningQuery(
+                ward_name="churchill",
+                status_mode="decided",
+            ),
+            PlanningQuery(
+                parish_name="Littlemore",
+                status_mode="decided",
+            ),
+        ]
         return build_report_from_applications(
             [application_factory()],
             status_mode="decided",

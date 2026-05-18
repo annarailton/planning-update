@@ -325,6 +325,36 @@ def test_build_search_criteria_uses_plural_wards_for_multiple_location_queries()
     assert "Ward" not in search_criteria
 
 
+def test_build_search_criteria_includes_additive_parish_scope() -> None:
+    """Search criteria should show parish scopes added alongside ward scopes."""
+    search_criteria = html_render.build_search_criteria(
+        options=ResolvedCliOptions(
+            status_mode="validated",
+            queries=[
+                PlanningQuery(
+                    ward_name="churchill",
+                    distance_around_ward_meters=241.4016,
+                    distance_around_ward_label="0.15 miles",
+                    status_mode="validated",
+                ),
+                PlanningQuery(
+                    ward_name="marston",
+                    distance_around_ward_meters=241.4016,
+                    distance_around_ward_label="0.15 miles",
+                    status_mode="validated",
+                ),
+                PlanningQuery(
+                    parish_name="Old Marston",
+                    status_mode="validated",
+                ),
+            ],
+        ),
+    )
+
+    assert search_criteria["Wards"] == "Churchill Ward, Marston Ward"
+    assert search_criteria["Parish"] == "Old Marston Parish Council"
+
+
 def test_render_application_html_shows_search_criteria_in_header(
     application_factory: Callable[..., Application],
 ) -> None:

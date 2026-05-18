@@ -438,3 +438,34 @@ def test_resolve_cli_options_expands_multiple_wards_from_config() -> None:
             status_mode="validated",
         ),
     ]
+
+
+def test_resolve_cli_options_treats_parish_as_additional_location_scope() -> None:
+    """A configured parish should add a query instead of narrowing each ward."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(status="validated"),
+        cli_config=CliConfig(
+            ward=["Churchill", "Marston"],
+            parish="Old Marston",
+            distance_around_ward="0.15 miles",
+        ),
+    )
+
+    assert options.queries == [
+        PlanningQuery(
+            ward_name="Churchill",
+            distance_around_ward_meters=241.4016,
+            distance_around_ward_label="0.15 miles",
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            ward_name="Marston",
+            distance_around_ward_meters=241.4016,
+            distance_around_ward_label="0.15 miles",
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            parish_name="Old Marston",
+            status_mode="validated",
+        ),
+    ]

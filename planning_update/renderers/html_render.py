@@ -176,6 +176,13 @@ def build_search_criteria(
             if query.ward_name is not None
         )
     )
+    parish_names = list(
+        dict.fromkeys(
+            query.resolved_parish_name()
+            for query in location_queries
+            if query.parish_name is not None
+        )
+    )
 
     mode = {
         "validated": "Validated in this week",
@@ -184,13 +191,26 @@ def build_search_criteria(
     }[options.status_mode]
 
     criteria = {
-        "Parish": primary_query.resolved_parish_name(),
         **({"Distance around parish": parish_distance} if parish_distance else {}),
         **({"Keywords": ", ".join(keywords)} if keywords else {}),
         **({"Major applications": "Yes"} if includes_major else {}),
         "Mode": mode,
         "Week": actual_week or primary_query.requested_week or "Latest available",
     }
+    if len(parish_names) > 1:
+        criteria = {
+            "Parishes": ", ".join(parish_names),
+            **criteria,
+        }
+    else:
+        criteria = {
+            "Parish": (
+                parish_names[0]
+                if parish_names
+                else primary_query.resolved_parish_name()
+            ),
+            **criteria,
+        }
     if len(ward_names) > 1:
         criteria = {
             "Wards": ", ".join(ward_names),

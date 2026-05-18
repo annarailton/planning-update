@@ -83,6 +83,46 @@ def test_build_planning_report_builds_sections_for_both_statuses(
     assert report.committee_section is None
 
 
+def test_build_planning_report_keeps_results_when_later_location_query_is_empty(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """A later ward/parish query should not replace applications already found."""
+    monkeypatch.setattr(
+        "planning_update.services.report_service.resolve_actual_week",
+        lambda query: "18 May 2026",
+    )
+
+    def fake_fetch_applications_for_query(
+        *, query: PlanningQuery, debug: bool, actual_week: str | None
+    ) -> tuple[list[Application], str | None]:
+        if query.ward_name == "Churchill":
+            return [
+                application_factory(application_ref={"value": "26/00817/CEU"})
+            ], "18 May 2026"
+        return [], "18 May 2026"
+
+    monkeypatch.setattr(
+        "planning_update.services.report_service.fetch_applications_for_query",
+        fake_fetch_applications_for_query,
+    )
+
+    report = build_planning_report(
+        options=ResolvedCliOptions(
+            debug=True,
+            status_mode="validated",
+            queries=[
+                PlanningQuery(ward_name="Churchill", status_mode="validated"),
+                PlanningQuery(ward_name="Marston", status_mode="validated"),
+                PlanningQuery(parish_name="Old Marston", status_mode="validated"),
+            ],
+        )
+    )
+
+    assert [
+        application.application_ref.value for application in report.applications
+    ] == ["26/00817/CEU"]
+
+
 def test_build_planning_report_adds_committee_section_when_agenda_items_exist(
     application_factory: Callable[..., Application], monkeypatch: pytest.MonkeyPatch
 ) -> None:

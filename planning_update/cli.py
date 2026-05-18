@@ -164,6 +164,7 @@ def run(
     html_output = render_application_html(
         report.applications,
         sections=report.sections,
+        committee_section=report.committee_section,
         search_criteria=search_criteria,
     )
 
@@ -181,6 +182,7 @@ def run(
         text_output = build_plain_text_email(
             applications=report.applications,
             sections=report.sections,
+            committee_section=report.committee_section,
             generated_at=generated_at,
             search_criteria=search_criteria,
         )

@@ -481,7 +481,23 @@ def normalize_space(value: str) -> str:
 
 
 def build_absolute_url(base_url: str, href: str) -> str:
-    """Build an absolute URL and quote spaces in path/query components."""
+    """Build an absolute URL and quote spaces in path/query components.
+
+    Modern.Gov agenda pages use relative links, and their PDF filenames often
+    contain literal spaces. Email clients handle the resulting links more
+    reliably when we make both fixes before rendering.
+
+    >>> build_absolute_url(
+    ...     "https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=568&MId=8165&Ver=4",
+    ...     "",
+    ... )
+    'https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=568&MId=8165&Ver=4'
+    >>> build_absolute_url(
+    ...     "https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=568&MId=8165&Ver=4",
+    ...     "documents/s90588/25-03195-FUL Mansfield College.pdf",
+    ... )
+    'https://mycouncil.oxford.gov.uk/documents/s90588/25-03195-FUL%20Mansfield%20College.pdf'
+    """
     absolute_url = urljoin(base_url, href)
     parts = urlsplit(absolute_url)
     return urlunsplit(
@@ -516,7 +532,18 @@ def extract_labeled_value(text: str, label: str) -> str | None:
 
 
 def parse_committee_meeting_date(value: str) -> date | None:
-    """Parse a Modern.Gov committee meeting date label."""
+    """Parse a Modern.Gov committee meeting date label.
+
+    The top-level meetings page includes dates inside link text such as
+    ``26 May 2026 6.00 pm`` and sometimes inside title attributes using
+    abbreviated month names.
+
+    >>> parse_committee_meeting_date("26 May 2026 6.00 pm")
+    datetime.date(2026, 5, 26)
+    >>> parse_committee_meeting_date("meeting of 14 Jul 2026")
+    datetime.date(2026, 7, 14)
+    >>> parse_committee_meeting_date("Agenda")
+    """
     match = re.search(r"(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})", value)
     if match is None:
         return None

@@ -8,7 +8,7 @@ from pathlib import Path
 import requests
 
 from ..constants import DEFAULT_SENDER_ADDRESS, RESEND_EMAILS_URL
-from ..models import Application, ApplicationSection
+from ..models import Application, ApplicationSection, CommitteeSection
 from ..renderers.html_render import format_generated_timestamp
 
 EMAIL_LOG_DIR = Path("email_logs")
@@ -28,6 +28,7 @@ def build_plain_text_email(
     sections: list[ApplicationSection] | None = None,
     generated_at: datetime,
     search_criteria: dict[str, str] | None,
+    committee_section: CommitteeSection | None = None,
 ) -> str:
     """Build a plain-text fallback version of the planning update email."""
     lines = [
@@ -85,6 +86,25 @@ def build_plain_text_email(
                 lines.append(section.empty_state_message)
     else:
         append_application_details(applications)
+
+    if committee_section and committee_section.applications:
+        lines.extend(["", committee_section.title])
+        for application in committee_section.applications:
+            details = [
+                "",
+                application.application_ref.value,
+                application.proposal,
+                f"Committee date: {application.committee_date.isoformat()}",
+            ]
+            if application.recommendation:
+                details.append(f"Recommendation: {application.recommendation}")
+            details.extend(
+                [
+                    f"Agenda: {application.agenda_url}",
+                    f"View committee report: {application.report_url}",
+                ]
+            )
+            lines.extend(details)
 
     lines.extend(["", f"Generated {format_generated_timestamp(generated_at)}"])
     return "\n".join(lines)

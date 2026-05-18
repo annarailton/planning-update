@@ -7,7 +7,13 @@ from pathlib import Path
 import requests
 
 from planning_update.integrations import email_sender
-from planning_update.models import Application, ApplicationSection
+from planning_update.models import (
+    Application,
+    ApplicationRef,
+    ApplicationSection,
+    CommitteeApplication,
+    CommitteeSection,
+)
 
 
 def test_build_plain_text_email_includes_core_sections(
@@ -72,6 +78,31 @@ def test_build_plain_text_email_includes_application_sections(
     assert "Decided applications" in text
     assert "26/00281/FUL" in text
     assert "26/00282/FUL" in text
+
+
+def test_build_plain_text_email_includes_committee_recommendation() -> None:
+    """Plain text email should include committee agenda recommendations."""
+    text = email_sender.build_plain_text_email(
+        applications=[],
+        committee_section=CommitteeSection(
+            applications=[
+                CommitteeApplication(
+                    application_ref=ApplicationRef(value="25/03195/FUL"),
+                    committee_date="26 May 2026",
+                    proposal="Demolition and replacement building.",
+                    address="Mansfield College, Mansfield Road, Oxford",
+                    agenda_url="https://mycouncil.oxford.gov.uk/agenda",
+                    report_url="https://mycouncil.oxford.gov.uk/report.pdf",
+                    recommendation="Approve",
+                )
+            ]
+        ),
+        generated_at=datetime(2026, 4, 13, 9, 30),
+        search_criteria=None,
+    )
+
+    assert "Recommendation: Approve" in text
+    assert "Agenda: https://mycouncil.oxford.gov.uk/agenda" in text
 
 
 def test_build_idempotency_key_is_stable_for_same_payload() -> None:

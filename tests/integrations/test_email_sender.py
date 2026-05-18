@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 
 import requests
 
@@ -90,6 +91,40 @@ def test_build_idempotency_key_is_stable_for_same_payload() -> None:
 
     assert first == second
     assert first.startswith("planning-update/")
+
+
+def test_build_default_email_log_path_includes_config_basename() -> None:
+    """Sent-email log paths should include the config file basename when present."""
+    log_path = email_sender.build_default_email_log_path(
+        sent_at=datetime(2026, 4, 20, 11, 29, 47, 123456),
+        config_path=Path("configs/anna.toml"),
+    )
+
+    assert log_path == Path("email_logs/2026-04-20T11-29-47-123456_anna.html")
+
+
+def test_build_default_email_log_path_without_config() -> None:
+    """Sent-email log paths should omit the config slug when no config is used."""
+    log_path = email_sender.build_default_email_log_path(
+        sent_at=datetime(2026, 4, 20, 11, 29, 47, 123456),
+    )
+
+    assert log_path == Path("email_logs/2026-04-20T11-29-47-123456.html")
+
+
+def test_write_sent_email_log_stores_rendered_html(tmp_path: Path) -> None:
+    """Sent-email logs should persist the rendered HTML directly."""
+    log_path = tmp_path / "sent-email.html"
+
+    written_path = email_sender.write_sent_email_log(
+        html="<p>Hello</p>",
+        sent_at=datetime(2026, 4, 20, 11, 29, 47),
+        config_path=Path("configs/anna.toml"),
+        log_path=log_path,
+    )
+
+    assert written_path == log_path
+    assert log_path.read_text(encoding="utf-8") == "<p>Hello</p>"
 
 
 def test_send_resend_email_raises_helpful_403_error(monkeypatch) -> None:

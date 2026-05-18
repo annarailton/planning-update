@@ -337,6 +337,12 @@ def test_cli_sends_email_via_resend(
 
     monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
     monkeypatch.setattr(main, "send_resend_email", fake_send_resend_email)
+    email_log_path = tmp_path / "sent-email.html"
+    monkeypatch.setattr(
+        main,
+        "build_default_email_log_path",
+        lambda *, sent_at, config_path: email_log_path,
+    )
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
 
     output_path = tmp_path / "applications.html"
@@ -354,6 +360,8 @@ def test_cli_sends_email_via_resend(
     assert "Oxford planning applications" in sent_payload["subject"]
     assert "<!DOCTYPE html>" in sent_payload["html"]
     assert "Oxford Planning Applications" in sent_payload["text"]
+    assert f"Saved sent email HTML to {email_log_path}" in result.stdout
+    assert email_log_path.read_text(encoding="utf-8") == sent_payload["html"]
 
 
 def test_cli_email_fails_before_scraping_when_resend_key_missing(
@@ -379,7 +387,7 @@ def test_cli_email_fails_before_scraping_when_resend_key_missing(
 
 
 def test_cli_email_loads_resend_key_from_dotenv(
-    application_factory: Callable[..., Application], monkeypatch
+    application_factory: Callable[..., Application], monkeypatch, tmp_path: Path
 ) -> None:
     """CLI should load a Resend API key from .env before sending email."""
 
@@ -410,6 +418,11 @@ def test_cli_email_loads_resend_key_from_dotenv(
     monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
     monkeypatch.setattr(main, "send_resend_email", fake_send_resend_email)
     monkeypatch.setattr(main, "load_dotenv", fake_load_dotenv)
+    monkeypatch.setattr(
+        main,
+        "build_default_email_log_path",
+        lambda *, sent_at, config_path: tmp_path / "dotenv-email.html",
+    )
 
     result = runner.invoke(
         main.app,
@@ -697,6 +710,7 @@ def test_cli_arguments_override_config(
         )
 
     sent_payload: dict[str, str] = {}
+    log_path_config_basename: list[str | None] = []
 
     def fake_send_resend_email(
         *,
@@ -713,6 +727,14 @@ def test_cli_arguments_override_config(
     monkeypatch.setenv("RESEND_API_KEY", "re_test_key")
     monkeypatch.setattr(main, "build_planning_report", fake_build_planning_report)
     monkeypatch.setattr(main, "send_resend_email", fake_send_resend_email)
+    monkeypatch.setattr(
+        main,
+        "build_default_email_log_path",
+        lambda *, sent_at, config_path: (
+            log_path_config_basename.append(config_path.name if config_path else None)
+            or tmp_path / "config-email.html"
+        ),
+    )
 
     output_path = tmp_path / "from-cli.html"
     result = runner.invoke(
@@ -735,3 +757,4 @@ def test_cli_arguments_override_config(
     assert not output_path.exists()
     assert "Sent email to cli@example.com via Resend (email_456)." in result.stdout
     assert sent_payload["recipient"] == "cli@example.com"
+    assert log_path_config_basename == ["planning_update.toml"]

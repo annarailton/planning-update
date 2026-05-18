@@ -7,8 +7,10 @@ import backoff
 import requests
 
 from ..constants import (
+    COMMITTEE_BASE_URL,
     DEFAULT_TIMEOUT_SECONDS,
     MAJOR_APPLICATIONS_URL,
+    PLANNING_COMMITTEE_MEETINGS_URL,
     RATE_LIMIT_INITIAL_BACKOFF_SECONDS,
     RATE_LIMIT_STATUS_CODES,
     RESULTS_URL,
@@ -181,6 +183,30 @@ def fetch_major_applications_page(session: requests.Session) -> str:
         timeout=DEFAULT_TIMEOUT_SECONDS,
     )
     return response.text
+
+
+def fetch_planning_committee_meetings_page(session: requests.Session) -> str:
+    """Fetch the Planning Committee meetings list page."""
+    response = request_with_backoff(
+        session,
+        method="GET",
+        url=PLANNING_COMMITTEE_MEETINGS_URL,
+        timeout=DEFAULT_TIMEOUT_SECONDS,
+    )
+    return response.text
+
+
+def fetch_planning_committee_agenda_page(
+    session: requests.Session, agenda_url: str
+) -> tuple[str, str]:
+    """Fetch a Planning Committee agenda page."""
+    response = request_with_backoff(
+        session,
+        method="GET",
+        url=agenda_url,
+        timeout=DEFAULT_TIMEOUT_SECONDS,
+    )
+    return response.text, response.url or COMMITTEE_BASE_URL
 
 
 def resolve_actual_week(query: PlanningQuery) -> str:

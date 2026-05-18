@@ -2,10 +2,13 @@
 
 from datetime import date
 
+import pytest
 from bs4 import BeautifulSoup
 
 from planning_update.parsing.parser import (
+    extract_committee_applications,
     extract_form_values,
+    extract_future_agenda_urls,
     extract_major_application_refs,
     extract_search_result_cards,
     extract_summary_application,
@@ -127,3 +130,181 @@ def test_extract_major_application_refs_reads_refs_from_major_section() -> None:
         "26/00266/FUL",
         "25/03242/FUL",
     ]
+
+
+@pytest.mark.parametrize(
+    ("html", "expected_meetings"),
+    [
+        pytest.param(
+            """
+            <ul>
+              <li><a class="mgMeetingTableLnk" href="ieListDocuments.aspx?CId=568&amp;MId=8510&amp;Ver=4">14 Jul 2026&nbsp;6.00 pm</a></li>
+            </ul>
+            """,
+            [],
+            id="future-date-without-agenda",
+        ),
+        pytest.param(
+            """
+            <ul>
+              <li><a class="mgMeetingTableLnk" href="ieListDocuments.aspx?CId=568&amp;MId=8165&amp;Ver=4">26 May 2026&nbsp;6.00 pm</a> - Agenda</li>
+            </ul>
+            """,
+            [
+                (
+                    date(2026, 5, 26),
+                    "https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=568&MId=8165&Ver=4",
+                )
+            ],
+            id="future-date-with-agenda",
+        ),
+        pytest.param(
+            """
+            <ul>
+              <li><a class="mgMeetingTableLnk" href="ieListDocuments.aspx?CId=568&amp;MId=8162&amp;Ver=4">24 Feb 2026&nbsp;6.00 pm</a> - Agenda</li>
+              <li><a class="mgMeetingTableLnk" href="ieListDocuments.aspx?CId=568&amp;MId=8161&amp;Ver=4">20 Jan 2026&nbsp;6.00 pm</a> - Agenda</li>
+            </ul>
+            """,
+            [],
+            id="no-future-dates",
+        ),
+        pytest.param(
+            """
+            <ul>
+              <li><a class="mgMeetingTableLnk" href="ieListDocuments.aspx?CId=568&amp;MId=8510&amp;Ver=4">14 Jul 2026&nbsp;6.00 pm</a></li>
+              <li><a class="mgMeetingTableLnk" href="ieListDocuments.aspx?CId=568&amp;MId=8165&amp;Ver=4">26 May 2026&nbsp;6.00 pm</a> - Agenda</li>
+              <li><a class="mgMeetingTableLnk" href="ieListDocuments.aspx?CId=568&amp;MId=8163&amp;Ver=4">24 Mar 2026&nbsp;6.00 pm</a> - CANCELLED</li>
+              <li><a class="mgMeetingTableLnk" href="ieListDocuments.aspx?CId=568&amp;MId=8162&amp;Ver=4">24 Feb 2026&nbsp;6.00 pm</a> - Agenda</li>
+            </ul>
+            """,
+            [
+                (
+                    date(2026, 5, 26),
+                    "https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=568&MId=8165&Ver=4",
+                )
+            ],
+            id="mixed-meetings",
+        ),
+    ],
+)
+def test_extract_future_agenda_urls_filters_top_level_meetings_page(
+    html: str,
+    expected_meetings: list[tuple[date, str]],
+) -> None:
+    """Top-level committee page parsing should return only future agenda URLs."""
+    meetings = extract_future_agenda_urls(
+        html,
+        today=date(2026, 5, 18),
+    )
+
+    assert meetings == expected_meetings
+
+
+def test_extract_committee_applications_reads_agenda_items() -> None:
+    """Committee agenda parsing should extract report links and proposal details."""
+    applications = extract_committee_applications(
+        """
+        <table id="mgItemTable">
+          <tr>
+            <td><p class="mgAiTitleTxt">5.</p></td>
+            <td>
+              <p class="mgAiTitleTxt"><a class="mgAiTitleLnk" href="documents/s90579/Minutes.pdf">Minutes PDF 154 KB</a></p>
+            </td>
+          </tr>
+          <tr>
+            <td><p class="mgAiTitleTxt">6.</p></td>
+            <td>
+              <p class="mgAiTitleTxt"><a class="mgAiTitleLnk" href="documents/s90588/25-03195-FUL Mansfield College.pdf">25/03195/FUL Mansfield College, Mansfield Road, Oxford, Oxfordshire PDF 896 KB</a></p>
+              <p><b>Site address</b>: Mansfield College, Mansfield Road, Oxford, Oxfordshire</p>
+              <p><b>Proposal:</b> Demolition of the John Marsh Building and erection of a four storey building.</p>
+              <p><b>Reason at Committee:</b> Major Development</p>
+              <p><b>RECOMMENDATION</b></p>
+              <p>Oxford City Planning Committee is recommended to:</p>
+              <p><b>Approve the application</b> for the reasons given in the report.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><p class="mgAiTitleTxt">7.</p></td>
+            <td>
+              <p class="mgAiTitleTxt"><a class="mgAiTitleLnk" href="documents/s90581/2503196LBC - Mansfield College.pdf">25/03196/LBC Mansfield College, Mansfield Road, Oxford, Oxfordshire PDF 718 KB</a></p>
+              <p><b>Site address:</b> Mansfield College Mansfield Road Oxford Oxfordshire OX1 3TF</p>
+              <p><b>Proposal:</b> Internal and external alterations to the Champneys north range buildings.</p>
+              <p><b>Reason at Committee:</b> Concurrent application</p>
+              <p><b>RECOMMENDATION</b></p>
+              <p>Oxford City Planning Committee is recommended to:</p>
+              <p><b>Approve the application</b> for the reasons given in the report.</p>
+            </td>
+          </tr>
+          <tr>
+            <td><p class="mgAiTitleTxt">8.</p></td>
+            <td>
+              <p class="mgAiTitleTxt"><a class="mgAiTitleLnk" href="documents/s90580/25.03223FUL - Cable Burcott Solar Farm.pdf">25/03223/FUL Land At Watlington Road, Cowley, Oxford PDF 605 KB</a></p>
+              <p><b>Site address:</b> Land At Watlington Road, Cowley, Oxford</p>
+              <p><b>Proposal:</b> Installation of an underground high voltage cable to support solar farm.</p>
+              <p><b>Reason at Committee:</b> Major Development</p>
+              <p><b>RECOMMENDATION</b></p>
+              <p>Oxford City Planning Committee is recommended to:</p>
+              <p><b>Approve the application</b> for the reasons given in the report.</p>
+            </td>
+          </tr>
+        </table>
+        """,
+        committee_date=date(2026, 5, 26),
+        page_url="https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=568&MId=8165&Ver=4",
+    )
+
+    assert [application.application_ref.value for application in applications] == [
+        "25/03195/FUL",
+        "25/03196/LBC",
+        "25/03223/FUL",
+    ]
+    assert [application.recommendation for application in applications] == [
+        "Approve",
+        "Approve",
+        "Approve",
+    ]
+    assert applications[0].committee_date == date(2026, 5, 26)
+    assert applications[0].address == (
+        "Mansfield College, Mansfield Road, Oxford, Oxfordshire"
+    )
+    assert applications[0].proposal == (
+        "Demolition of the John Marsh Building and erection of a four storey building."
+    )
+    assert applications[0].agenda_url == (
+        "https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=568&MId=8165&Ver=4"
+    )
+    assert applications[0].report_url == (
+        "https://mycouncil.oxford.gov.uk/documents/s90588/25-03195-FUL%20Mansfield%20College.pdf"
+    )
+
+
+def test_extract_committee_applications_reads_refusal_recommendation() -> None:
+    """Committee agenda parsing should normalize refusal recommendations."""
+    applications = extract_committee_applications(
+        """
+        <table id="mgItemTable">
+          <tr>
+            <td><p class="mgAiTitleTxt">43.</p></td>
+            <td>
+              <p class="mgAiTitleTxt"><a class="mgAiTitleLnk" href="documents/s89123/25-02702-FUL Unit 11 Kings Meadow.pdf">25/02702/FUL Unit 11, Kings Meadow, Ferry Hinksey Road, Oxford PDF 520 KB</a></p>
+              <p><b>Site address:</b> Unit 11, Kings Meadow, Ferry Hinksey Road, Oxford</p>
+              <p><b>Proposal:</b> Change of use to a day nursery.</p>
+              <p><b>Reason at Committee:</b> Called in</p>
+              <p><b>RECOMMENDATION</b></p>
+              <p>Oxford City Planning Committee is recommended to:</p>
+              <p><b>Refuse the application</b> for the reasons given in the report, including flood risk in Flood Zone 3b and inadequate cycle parking.</p>
+            </td>
+          </tr>
+        </table>
+        """,
+        committee_date=date(2025, 12, 9),
+        page_url="https://mycouncil.oxford.gov.uk/ieListDocuments.aspx?CId=568&MId=8160&Ver=4",
+    )
+
+    assert len(applications) == 1
+    assert applications[0].application_ref.value == "25/02702/FUL"
+    assert applications[0].proposal == "Change of use to a day nursery."
+    assert applications[0].address == (
+        "Unit 11, Kings Meadow, Ferry Hinksey Road, Oxford"
+    )
+    assert applications[0].recommendation == "Refuse"

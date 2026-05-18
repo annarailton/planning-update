@@ -1,15 +1,17 @@
 """HTML parsing helpers for the Oxford planning scraper."""
 
 import re
-from urllib.parse import urljoin
+from datetime import date, datetime
+from urllib.parse import quote, urljoin, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup, Tag
 
-from ..constants import BASE_URL, WEEKLY_LIST_URL
+from ..constants import BASE_URL, COMMITTEE_BASE_URL, WEEKLY_LIST_URL
 from ..models import (
     APPLICATION_ID_RE,
     Application,
     ApplicationRef,
+    CommitteeApplication,
 )
 
 
@@ -176,6 +178,83 @@ def extract_major_application_refs(html: str) -> list[ApplicationRef]:
             seen_refs.add(raw_ref)
 
     return refs
+
+
+def extract_future_agenda_urls(
+    html: str,
+    *,
+    today: date,
+) -> list[tuple[date, str]]:
+    """Extract future planning committee meeting URLs that have an agenda."""
+    soup = BeautifulSoup(html, "html.parser")
+    meetings: list[tuple[date, str]] = []
+
+    for item in soup.select("li"):
+        link = item.select_one("a.mgMeetingTableLnk[href]")
+        if link is None:
+            continue
+
+        item_text = normalize_space(item.get_text(" ", strip=True))
+        if "agenda" not in item_text.lower() or "cancelled" in item_text.lower():
+            continue
+
+        meeting_date = parse_committee_meeting_date(
+            normalize_space(link.get_text(" ", strip=True))
+        )
+        if meeting_date is None or meeting_date < today:
+            continue
+
+        meetings.append((meeting_date, urljoin(COMMITTEE_BASE_URL, link["href"])))
+
+    return sorted(meetings, key=lambda meeting: meeting[0])
+
+
+def extract_committee_applications(
+    html: str,
+    *,
+    committee_date: date,
+    page_url: str,
+) -> list[CommitteeApplication]:
+    """Extract application items from a planning committee agenda page."""
+    soup = BeautifulSoup(html, "html.parser")
+    applications: list[CommitteeApplication] = []
+    seen_refs: set[str] = set()
+
+    for row in soup.select("#mgItemTable tr"):
+        title_link = row.select_one("a.mgAiTitleLnk[href]")
+        if title_link is None:
+            continue
+
+        title_text = normalize_space(title_link.get_text(" ", strip=True))
+        ref_match = APPLICATION_ID_RE.search(title_text)
+        if ref_match is None:
+            continue
+
+        application_ref = ref_match.group(0)
+        if application_ref in seen_refs:
+            continue
+
+        row_text = normalize_space(row.get_text(" ", strip=True))
+        address = extract_committee_labeled_value(row_text, "Site address")
+        proposal = extract_committee_labeled_value(row_text, "Proposal")
+        recommendation = extract_committee_recommendation(row_text)
+        if address is None or proposal is None:
+            continue
+
+        applications.append(
+            CommitteeApplication(
+                application_ref=ApplicationRef(value=application_ref),
+                committee_date=committee_date,
+                proposal=proposal,
+                address=address,
+                agenda_url=build_absolute_url(page_url, ""),
+                report_url=build_absolute_url(page_url, title_link["href"]),
+                recommendation=recommendation,
+            )
+        )
+        seen_refs.add(application_ref)
+
+    return applications
 
 
 def extract_search_result_cards(soup: BeautifulSoup, week: str) -> list[Application]:
@@ -401,6 +480,21 @@ def normalize_space(value: str) -> str:
     return " ".join(value.split())
 
 
+def build_absolute_url(base_url: str, href: str) -> str:
+    """Build an absolute URL and quote spaces in path/query components."""
+    absolute_url = urljoin(base_url, href)
+    parts = urlsplit(absolute_url)
+    return urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            quote(parts.path, safe="/%"),
+            quote(parts.query, safe="=&?/%+-_."),
+            quote(parts.fragment, safe="=&?/%+-_."),
+        )
+    )
+
+
 def extract_labeled_value(text: str, label: str) -> str | None:
     """Extract a labeled value from flattened text.
 
@@ -419,6 +513,70 @@ def extract_labeled_value(text: str, label: str) -> str | None:
     if match is None:
         return None
     return normalize_space(match.group(1))
+
+
+def parse_committee_meeting_date(value: str) -> date | None:
+    """Parse a Modern.Gov committee meeting date label."""
+    match = re.search(r"(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})", value)
+    if match is None:
+        return None
+    raw_date = match.group(1)
+    for date_format in ("%d %b %Y", "%d %B %Y"):
+        try:
+            return datetime.strptime(raw_date, date_format).date()
+        except ValueError:
+            continue
+    return None
+
+
+def extract_committee_labeled_value(text: str, label: str) -> str | None:
+    """Extract labeled agenda item text from a flattened committee row."""
+    following_labels = [
+        "Site address",
+        "Proposal",
+        "Reason at Committee",
+        "RECOMMENDATION",
+        "Oxford City Planning Committee",
+    ]
+    stops = "|".join(re.escape(item) for item in following_labels if item != label)
+    match = re.search(
+        rf"{re.escape(label)}\s*:?\s*(.+?)(?:\s+(?:{stops})\s*:?\s*|\s*$)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    return normalize_space(match.group(1))
+
+
+def extract_committee_recommendation(text: str) -> str | None:
+    """Extract a short recommendation from committee agenda item text."""
+    recommendation_match = re.search(
+        r"\bRECOMMENDATION\b\s*:?\s*(.+)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if recommendation_match is None:
+        return None
+
+    recommended_to_match = re.search(
+        r"recommended\s+to\b(.+)",
+        recommendation_match.group(1),
+        flags=re.IGNORECASE,
+    )
+    candidate_text = (
+        recommended_to_match.group(1)
+        if recommended_to_match is not None
+        else recommendation_match.group(1)
+    )
+    action_match = re.search(
+        r"\b(approve|refuse|grant|defer|note)\b",
+        candidate_text,
+        flags=re.IGNORECASE,
+    )
+    if action_match is None:
+        return None
+    return action_match.group(1).capitalize()
 
 
 def extract_meta_date(meta_text: str, label: str) -> str | None:

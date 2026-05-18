@@ -13,9 +13,11 @@ from pydantic import ValidationError
 
 from .config import load_cli_config, resolve_cli_options
 from .integrations.email_sender import (
+    build_default_email_log_path,
     build_email_subject,
     build_plain_text_email,
     send_resend_email,
+    write_sent_email_log,
 )
 from .models import CliInputs, CliStatusMode
 from .renderers.html_render import build_search_criteria, render_application_html
@@ -190,7 +192,18 @@ def run(
             html=html_output,
             text=text_output,
         )
+        sent_at = datetime.now()
+        email_log_path = write_sent_email_log(
+            html=html_output,
+            sent_at=sent_at,
+            config_path=config,
+            log_path=build_default_email_log_path(
+                sent_at=sent_at,
+                config_path=config,
+            ),
+        )
         typer.echo(f"Sent email to {options.email_recipient} via Resend ({email_id}).")
+        typer.echo(f"Saved sent email HTML to {email_log_path}")
 
 
 def main() -> None:

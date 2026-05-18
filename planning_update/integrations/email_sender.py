@@ -1,13 +1,17 @@
 """Email sending helpers for planning application updates."""
 
 import hashlib
+import re
 from datetime import datetime
+from pathlib import Path
 
 import requests
 
 from ..constants import DEFAULT_SENDER_ADDRESS, RESEND_EMAILS_URL
 from ..models import Application, ApplicationSection
 from ..renderers.html_render import format_generated_timestamp
+
+EMAIL_LOG_DIR = Path("email_logs")
 
 
 def build_email_subject(
@@ -98,6 +102,40 @@ def build_idempotency_key(
         f"{sender}\n{recipient}\n{subject}\n{html}".encode("utf-8")
     ).hexdigest()
     return f"planning-update/{digest[:40]}"
+
+
+def safe_filename_part(value: str) -> str:
+    """Return a filesystem-friendly label for generated log filenames."""
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "_", value).strip("._-")
+    return slug or "config"
+
+
+def build_default_email_log_path(
+    *, sent_at: datetime, config_path: Path | None = None
+) -> Path:
+    """Build the default timestamped sent-email log path."""
+    timestamp_slug = sent_at.strftime("%Y-%m-%dT%H-%M-%S-%f")
+    config_slug = ""
+    if config_path is not None:
+        config_slug = f"_{safe_filename_part(config_path.stem)}"
+    return EMAIL_LOG_DIR.joinpath(f"{timestamp_slug}{config_slug}.html")
+
+
+def write_sent_email_log(
+    *,
+    html: str,
+    sent_at: datetime,
+    config_path: Path | None = None,
+    log_path: Path | None = None,
+) -> Path:
+    """Write the rendered HTML for a successfully sent email."""
+    resolved_log_path = log_path or build_default_email_log_path(
+        sent_at=sent_at,
+        config_path=config_path,
+    )
+    resolved_log_path.parent.mkdir(parents=True, exist_ok=True)
+    resolved_log_path.write_text(html, encoding="utf-8")
+    return resolved_log_path
 
 
 def send_resend_email(

@@ -12,7 +12,7 @@ https://public.oxford.gov.uk/online-applications/search.do?action=weeklyList
   - Parish
   - Keywords in the application description
   - Major applications listed on Oxford City Council's current major applications page
-  - Going to an upcoming planning committee
+  - Going to an upcoming planning or planning review committee
 - Produces summary with descriptions and links
 - Config for preferences
 

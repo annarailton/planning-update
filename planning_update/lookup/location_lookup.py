@@ -7,7 +7,7 @@ import re
 
 from rapidfuzz import process
 
-from ..constants import FUZZY_MATCH_THRESHOLD, WARD_DATA_PATH
+from ..constants import DIVISION_BOUNDARIES_PATH, FUZZY_MATCH_THRESHOLD, WARD_DATA_PATH
 
 
 def load_mapping_options() -> dict[str, list[dict[str, str]]]:
@@ -17,6 +17,16 @@ def load_mapping_options() -> dict[str, list[dict[str, str]]]:
         Parsed mapping data keyed by section name.
     """
     return json.loads(WARD_DATA_PATH.read_text())
+
+
+def load_division_names() -> list[str]:
+    """Load county division names from the checked-in GeoJSON file.
+
+    Returns:
+        A list of canonical division names from the GeoJSON feature properties.
+    """
+    geojson = json.loads(DIVISION_BOUNDARIES_PATH.read_text(encoding="utf-8"))
+    return [str(feature["properties"]["NAME"]) for feature in geojson["features"]]
 
 
 def normalize_name(
@@ -75,6 +85,18 @@ def build_parish_alias_to_code() -> dict[str, str]:
     return {
         normalize_name(parish_name): parish_code
         for parish_name, parish_code in PARISH_NAME_TO_CODE.items()
+    }
+
+
+def build_division_alias_to_name() -> dict[str, str]:
+    """Build a forgiving alias lookup for county division names.
+
+    Returns:
+        A mapping from normalized division aliases to canonical division name.
+    """
+    return {
+        normalize_name(division_name, removable_suffixes=("ed",)): division_name
+        for division_name in DIVISION_NAMES
     }
 
 
@@ -153,7 +175,37 @@ def resolve_parish_code(parish_name: str) -> str:
     )
 
 
+def resolve_division_name(division_name: str) -> str:
+    """Resolve a human-readable county division name to its canonical name.
+
+    Args:
+        division_name: Human-readable division name from the CLI.
+
+    Returns:
+        The canonical division name for the provided division name.
+    """
+    requested_name = normalize_name(division_name, removable_suffixes=("ed",))
+    resolved_name = DIVISION_ALIAS_TO_NAME.get(requested_name)
+    if resolved_name:
+        return resolved_name
+
+    fuzzy_match = process.extractOne(
+        requested_name,
+        list(DIVISION_ALIAS_TO_NAME),
+        score_cutoff=FUZZY_MATCH_THRESHOLD,
+    )
+    if fuzzy_match is not None:
+        matched_alias, _, _ = fuzzy_match
+        return DIVISION_ALIAS_TO_NAME[matched_alias]
+
+    available_names = ", ".join(sorted(DIVISION_NAMES))
+    raise ValueError(
+        f"Unknown division '{division_name}'. Available divisions: {available_names}"
+    )
+
+
 _MAPPING_DATA = load_mapping_options()
+DIVISION_NAMES = load_division_names()
 WARD_CODE_TO_NAME = {
     option["code"]: option["name"] for option in _MAPPING_DATA["wards"]
 }
@@ -168,3 +220,4 @@ PARISH_NAME_TO_CODE = {
     option["name"]: option["code"] for option in _MAPPING_DATA["parishes"]
 }
 PARISH_ALIAS_TO_CODE = build_parish_alias_to_code()
+DIVISION_ALIAS_TO_NAME = build_division_alias_to_name()

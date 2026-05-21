@@ -30,6 +30,7 @@ def test_build_plain_text_email_includes_core_sections(
     assert "Search criteria:" in text
     assert "- Ward: Churchill" in text
     assert "26/00281/FUL" in text
+    assert "Call-in deadline: 2026-03-02 17:00" in text
     assert "View application: https://example.com/app" in text
     assert "Generated 2026-04-13 09:30" in text
 

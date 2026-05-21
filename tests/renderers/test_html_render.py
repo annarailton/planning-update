@@ -111,6 +111,29 @@ def test_render_application_html_colours_deadlines(
     )
 
 
+def test_render_application_html_shows_call_in_deadline(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Validated applications should show the calculated call-in deadline."""
+    html = html_render.render_application_html(
+        [
+            application_factory(
+                validated=date(2026, 3, 16),
+                status="Registered",
+                decision=None,
+                decided=None,
+            )
+        ],
+        today=date(2026, 4, 1),
+    )
+
+    assert "Call-in deadline" in html
+    assert (
+        '<td class="field-value field-value--date-future" valign="top">2026-04-06 17:00</td>'
+        in html
+    )
+
+
 @pytest.mark.parametrize(
     ("status", "css_class", "css_rule"),
     [

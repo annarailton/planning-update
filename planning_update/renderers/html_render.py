@@ -51,6 +51,13 @@ def format_application_date(value: date | None) -> str:
     return escape(value.strftime("%Y-%m-%d"))
 
 
+def format_application_datetime(value: datetime | None) -> str:
+    """Render application datetime values consistently for HTML output."""
+    if value is None:
+        return "N/A"
+    return escape(value.strftime("%Y-%m-%d %H:%M"))
+
+
 def format_optional_text(value: str | None) -> str:
     """Render optional string values consistently for HTML output."""
     return escape(value or "N/A")
@@ -332,6 +339,13 @@ def render_application_html(
                 ),
                 ("Received", format_application_date(application.received), ""),
                 ("Validated", format_application_date(application.validated), ""),
+                (
+                    "Call-in deadline",
+                    format_application_datetime(application.call_in_deadline),
+                    date_css_class(
+                        application.call_in_deadline.date(), today=render_today
+                    ),
+                ),
                 (
                     "Consultation deadline",
                     format_application_date(application.consultation_deadline),

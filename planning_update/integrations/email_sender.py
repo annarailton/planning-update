@@ -52,6 +52,10 @@ def build_plain_text_email(
                 f"Ward: {application.ward or 'Not provided'}",
                 f"Received: {application.received.isoformat()}",
                 f"Validated: {application.validated.isoformat()}",
+                (
+                    "Call-in deadline: "
+                    f"{application.call_in_deadline.strftime('%Y-%m-%d %H:%M')}"
+                ),
             ]
             if application.keyword_matches:
                 details.append(

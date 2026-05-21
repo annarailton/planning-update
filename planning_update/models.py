@@ -372,7 +372,7 @@ class CliConfig(BaseModel):
 
     debug: bool | None = None
     ward: str | list[str] | None = None
-    parish: str | None = None
+    parish: str | list[str] | None = None
     division: str | list[str] | None = None
     status_mode: CliStatusMode | None = None
     week: str | None = None
@@ -503,7 +503,7 @@ class CliInputs(BaseModel):
 
     debug: bool = False
     ward: str | list[str] | None = None
-    parish: str | None = None
+    parish: str | list[str] | None = None
     division: str | list[str] | None = None
     status: CliStatusMode | None = None
     week: str | None = None

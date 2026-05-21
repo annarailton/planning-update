@@ -1,6 +1,6 @@
 """Tests for the application data models."""
 
-from datetime import date
+from datetime import date, datetime
 
 import pytest
 
@@ -104,6 +104,51 @@ def test_application_model_validate_updates_postcode_when_address_changes() -> N
     )
 
     assert updated.postcode == "OX1 1BX"
+
+
+@pytest.mark.parametrize(
+    ("validated", "expected_notice_date", "expected_deadline"),
+    [
+        pytest.param(
+            date(2026, 3, 17),
+            date(2026, 3, 17),
+            datetime(2026, 4, 6, 17, 0),
+            id="validated-on-weekly-list-tuesday",
+        ),
+        pytest.param(
+            date(2026, 3, 16),
+            date(2026, 3, 17),
+            datetime(2026, 4, 6, 17, 0),
+            id="validated-before-weekly-list-tuesday",
+        ),
+        pytest.param(
+            date(2026, 3, 18),
+            date(2026, 3, 24),
+            datetime(2026, 4, 13, 17, 0),
+            id="validated-after-weekly-list-tuesday",
+        ),
+    ],
+)
+def test_application_calculates_call_in_deadline_from_weekly_list_tuesday(
+    validated: date,
+    expected_notice_date: date,
+    expected_deadline: datetime,
+) -> None:
+    """Call-in deadline should use the Tuesday weekly-list notice date."""
+    # The weekly list goes out every Tuesday. The call-in period starts on that
+    # notice date and runs for 21 days inclusive, so the deadline is 5pm on
+    # notice date + 20 days.
+    application = Application(
+        application_ref=ApplicationRef(value="26/00281/FUL"),
+        proposal="Test proposal",
+        url="https://example.com",
+        address="1 Test Street",
+        received="Thu 12 Mar 2026",
+        validated=validated,
+    )
+
+    assert application.weekly_list_notice_date == expected_notice_date
+    assert application.call_in_deadline == expected_deadline
 
 
 @pytest.mark.parametrize(

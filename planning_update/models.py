@@ -1,11 +1,11 @@
 """Data models for the planning application scraper."""
 
 import re
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from typing import ClassVar, Literal
 
 from pint import UndefinedUnitError, UnitRegistry
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from .lookup.location_lookup import (
     PARISH_CODE_TO_NAME,
@@ -83,6 +83,9 @@ class Application(BaseModel):
     """
 
     UK_POSTCODE_RE: ClassVar[re.Pattern[str]] = UK_POSTCODE_RE
+    WEEKLY_LIST_NOTICE_WEEKDAY: ClassVar[int] = 1  # Tuesday
+    CALL_IN_PERIOD_DAYS: ClassVar[int] = 21
+    CALL_IN_DEADLINE_TIME: ClassVar[time] = time(hour=17)  # 5pm
 
     application_ref: ApplicationRef
     proposal: str
@@ -145,6 +148,28 @@ class Application(BaseModel):
         """Populate the derived postcode field from the address."""
         self.postcode = self.postcode_from_address(self.address)
         return self
+
+    @computed_field
+    @property
+    def weekly_list_notice_date(self) -> date:
+        """Return the Tuesday weekly-list date that starts the call-in period."""
+        days_until_notice = (
+            self.WEEKLY_LIST_NOTICE_WEEKDAY - self.validated.weekday()
+        ) % 7
+        return self.validated + timedelta(days=days_until_notice)
+
+    @computed_field
+    @property
+    def call_in_deadline(self) -> datetime:
+        """Return the 5pm call-in deadline for validated applications.
+
+        Oxford's call-in period is 21 days inclusive of the notice date, so the
+        last day is 20 days after the Tuesday weekly-list notice date.
+        """
+        return datetime.combine(
+            self.weekly_list_notice_date + timedelta(days=self.CALL_IN_PERIOD_DAYS - 1),
+            self.CALL_IN_DEADLINE_TIME,
+        )
 
     @classmethod
     def postcode_from_address(cls, address: str) -> str | None:

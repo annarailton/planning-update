@@ -13,6 +13,9 @@ from .lookup.location_lookup import (
     resolve_parish_code,
     resolve_ward_code,
 )
+from .lookup.location_lookup import (
+    resolve_division_name as resolve_location_division_name,
+)
 
 ApplicationStatusMode = Literal["validated", "decided"]
 CliStatusMode = Literal["validated", "decided", "both"]
@@ -22,7 +25,7 @@ CliStatusMode = Literal["validated", "decided", "both"]
 APPLICATION_ID_RE = re.compile(r"\b\d{2}/\d{5}/[A-Z0-9]+\b")
 # Capture a likely UK postcode in either spaced or compact form so we can pull
 # it back out of the free-text planning-application address field.#
-# We need this for ward / parish lookups later
+# We need this for ward / parish / division lookups later
 #
 # The pattern allows:
 # - one or two leading letters
@@ -92,6 +95,7 @@ class Application(BaseModel):
     # Not all of these will exist (e.g. "Decision" only appears when there's a decision)
     ward: str | None = None
     parish: str | None = None
+    division: str | None = None
     decided: date | None = None
     consultation_deadline: date | None = None
     determination_deadline: date | None = None
@@ -199,11 +203,14 @@ class PlanningQuery(BaseModel):
 
     ward_name: str | None = None
     parish_name: str | None = None
+    division_name: str | None = None
     requested_week: str | None = None
     distance_around_ward_meters: float = 0.0
     distance_around_parish_meters: float = 0.0
+    distance_around_division_meters: float = 0.0
     distance_around_ward_label: str | None = None
     distance_around_parish_label: str | None = None
+    distance_around_division_label: str | None = None
     keywords: list[str] = Field(default_factory=list)
     major: bool = False
     status_mode: ApplicationStatusMode = "validated"
@@ -223,6 +230,10 @@ class PlanningQuery(BaseModel):
     def uses_distance_around_parish(self) -> bool:
         """Return whether this query should include a parish-distance buffer."""
         return self.distance_around_parish_meters > 0
+
+    def uses_distance_around_division(self) -> bool:
+        """Return whether this query should include a division-distance buffer."""
+        return self.distance_around_division_meters > 0
 
     def resolve_ward_code(self) -> str:
         """Resolve the configured ward name to an Oxford ward code.
@@ -278,6 +289,16 @@ class PlanningQuery(BaseModel):
         parish_code = resolve_parish_code(self.parish_name)
         return PARISH_CODE_TO_NAME[parish_code]
 
+    def resolved_division_name(self) -> str:
+        """Return the canonical human-readable division name for the query.
+
+        Returns:
+            The canonical division name, or ``All divisions`` when no division is set.
+        """
+        if self.division_name is None:
+            return "All divisions"
+        return resolve_location_division_name(self.division_name)
+
     def matching_keywords(self, proposal: str) -> list[str]:
         """Return the configured lowercase keywords found in a proposal."""
         proposal_text = proposal.lower()
@@ -327,14 +348,17 @@ class CliConfig(BaseModel):
     debug: bool | None = None
     ward: str | list[str] | None = None
     parish: str | None = None
+    division: str | list[str] | None = None
     status_mode: CliStatusMode | None = None
     week: str | None = None
     keywords: str | list[str] | None = None
     major: bool | None = None
     distance_around_ward: float = 0.0
     distance_around_parish: float = 0.0
+    distance_around_division: float = 0.0
     distance_around_ward_label: str | None = None
     distance_around_parish_label: str | None = None
+    distance_around_division_label: str | None = None
     email_to: str | None = None
 
     @staticmethod
@@ -344,18 +368,18 @@ class CliConfig(BaseModel):
 
     @classmethod
     def parse_distance_around_X(cls, value: str | int | float | None) -> float:
-        """Parse a distance-around-ward or distance-around-parish config value into meters."""
+        """Parse a configured distance buffer into meters."""
         if value is None:
             return 0.0
         if isinstance(value, (int, float)):
             if value == 0:
                 return 0.0
             raise TypeError(
-                "distance_around_ward/parish must include units such as '0.25 miles' or '0.4 km'"
+                "distance_around_ward/parish/division must include units such as '0.25 miles' or '0.4 km'"
             )
         if not isinstance(value, str):
             raise TypeError(
-                "distance_around_ward/parish must be provided as a string or zero"
+                "distance_around_ward/parish/division must be provided as a string or zero"
             )
 
         raw_value = value.strip()
@@ -365,28 +389,28 @@ class CliConfig(BaseModel):
         # config we want users to provide an explicit quantity up front.
         if cls.LEADING_NUMBER_RE.match(raw_value) is None:
             raise ValueError(
-                "distance_around_ward/parish must be a valid distance such as '0.25 miles' or '0.4 km'"
+                "distance_around_ward/parish/division must be a valid distance such as '0.25 miles' or '0.4 km'"
             )
 
         try:
             quantity = cls.UNIT_REGISTRY(raw_value)
         except (UndefinedUnitError, TypeError) as exc:
             raise ValueError(
-                "distance_around_ward/parish must be a valid distance such as '0.25 miles' or '0.4 km'"
+                "distance_around_ward/parish/division must be a valid distance such as '0.25 miles' or '0.4 km'"
             ) from exc
 
         if getattr(quantity, "magnitude", None) == 0:
             return 0.0
         if not hasattr(quantity, "to"):
             raise ValueError(
-                "distance_around_ward/parish must include length units such as miles or km"
+                "distance_around_ward/parish/division must include length units such as miles or km"
             )
 
         try:
             return float(quantity.to("meter").magnitude)
         except Exception as exc:  # pragma: no cover
             raise ValueError(
-                "distance_around_ward/parish must include length units such as miles or km"
+                "distance_around_ward/parish/division must include length units such as miles or km"
             ) from exc
 
     @field_validator("distance_around_ward", mode="before")
@@ -399,6 +423,14 @@ class CliConfig(BaseModel):
     @classmethod
     def validate_distance_around_parish(cls, value: str | int | float | None) -> float:
         """Normalize distance-around-parish config values into meters."""
+        return cls.parse_distance_around_X(value)
+
+    @field_validator("distance_around_division", mode="before")
+    @classmethod
+    def validate_distance_around_division(
+        cls, value: str | int | float | None
+    ) -> float:
+        """Normalize distance-around-division config values into meters."""
         return cls.parse_distance_around_X(value)
 
     @model_validator(mode="before")
@@ -421,6 +453,12 @@ class CliConfig(BaseModel):
                 cls.normalize_distance_label(parish_distance)
             )
 
+        division_distance = normalized_data.get("distance_around_division")
+        if isinstance(division_distance, str) and division_distance.strip():
+            normalized_data["distance_around_division_label"] = (
+                cls.normalize_distance_label(division_distance)
+            )
+
         return normalized_data
 
     @model_validator(mode="after")
@@ -430,6 +468,8 @@ class CliConfig(BaseModel):
             self.distance_around_ward_label = None
         if self.distance_around_parish == 0:
             self.distance_around_parish_label = None
+        if self.distance_around_division == 0:
+            self.distance_around_division_label = None
         return self
 
 
@@ -439,6 +479,7 @@ class CliInputs(BaseModel):
     debug: bool = False
     ward: str | list[str] | None = None
     parish: str | None = None
+    division: str | list[str] | None = None
     status: CliStatusMode | None = None
     week: str | None = None
     keywords: str | list[str] | None = None

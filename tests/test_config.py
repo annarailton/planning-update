@@ -6,6 +6,7 @@ import pytest
 
 from planning_update.config import (
     load_cli_config,
+    parse_divisions,
     parse_keywords,
     parse_wards,
     resolve_cli_options,
@@ -22,12 +23,14 @@ def test_load_cli_config_reads_top_level_values(tmp_path: Path) -> None:
                 "debug = true",
                 'ward = "churchill"',
                 'parish = "Littlemore"',
+                'division = "Cowley"',
                 'status_mode = "decided"',
                 'week = "30 Mar 2026"',
                 'keywords = "photovoltaics, heat pump, ASHP, PV"',
                 "major = true",
                 'distance_around_ward = "0.25 miles"',
                 'distance_around_parish = "0.4 km"',
+                'distance_around_division = "0.3 miles"',
                 'email_to = "anna@example.com"',
             ]
         ),
@@ -39,14 +42,17 @@ def test_load_cli_config_reads_top_level_values(tmp_path: Path) -> None:
     assert config.debug is True
     assert config.ward == "churchill"
     assert config.parish == "Littlemore"
+    assert config.division == "Cowley"
     assert config.status_mode == "decided"
     assert config.week == "30 Mar 2026"
     assert config.keywords == "photovoltaics, heat pump, ASHP, PV"
     assert config.major is True
     assert config.distance_around_ward == pytest.approx(402.336, abs=0.001)
     assert config.distance_around_parish == pytest.approx(400.0, abs=0.001)
+    assert config.distance_around_division == pytest.approx(482.803, abs=0.001)
     assert config.distance_around_ward_label == "0.25 miles"
     assert config.distance_around_parish_label == "0.4 km"
+    assert config.distance_around_division_label == "0.3 miles"
     assert config.email_to == "anna@example.com"
 
 
@@ -81,6 +87,19 @@ def test_load_cli_config_reads_ward_lists(tmp_path: Path) -> None:
     config = load_cli_config(path=config_path)
 
     assert config.ward == ["churchill", "hinksey park"]
+
+
+def test_load_cli_config_reads_division_lists(tmp_path: Path) -> None:
+    """Config loader should accept TOML division lists."""
+    config_path = tmp_path / "planning_update.toml"
+    config_path.write_text(
+        'division = ["Cowley", "Leys"]',
+        encoding="utf-8",
+    )
+
+    config = load_cli_config(path=config_path)
+
+    assert config.division == ["Cowley", "Leys"]
 
 
 def test_parse_keywords_normalizes_and_deduplicates_strings() -> None:
@@ -175,6 +194,18 @@ def test_parse_wards_accepts_strings_and_lists() -> None:
     ]
 
 
+def test_parse_divisions_accepts_strings_and_lists() -> None:
+    """Division parsing should trim and deduplicate string or list input."""
+    assert parse_divisions(" Cowley , Leys, cowley ") == [
+        "Cowley",
+        "Leys",
+    ]
+    assert parse_divisions(["Cowley", " Leys ", "cowley"]) == [
+        "Cowley",
+        "Leys",
+    ]
+
+
 def test_parse_keywords_rejects_invalid_types() -> None:
     """Keyword parsing should reject unsupported input types."""
     with pytest.raises(TypeError, match="keywords must be provided"):
@@ -185,6 +216,12 @@ def test_parse_wards_rejects_invalid_types() -> None:
     """Ward parsing should reject unsupported input types."""
     with pytest.raises(TypeError, match="ward must be provided"):
         parse_wards(123)
+
+
+def test_parse_divisions_rejects_invalid_types() -> None:
+    """Division parsing should reject unsupported input types."""
+    with pytest.raises(TypeError, match="division must be provided"):
+        parse_divisions(123)
 
 
 def test_resolve_cli_options_defaults_keyword_queries_to_both_statuses() -> None:
@@ -292,6 +329,40 @@ def test_resolve_cli_options_rejects_parish_distance_without_parish() -> None:
         )
 
 
+def test_resolve_cli_options_applies_distance_around_division_to_division_queries() -> (
+    None
+):
+    """Division distance config should work for division-filtered queries."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(status="validated"),
+        cli_config=CliConfig(
+            division="Cowley",
+            distance_around_division="0.25 miles",
+        ),
+    )
+
+    assert len(options.queries) == 1
+    assert options.queries[0].division_name == "Cowley"
+    assert options.queries[0].status_mode == "validated"
+    assert options.queries[0].distance_around_division_meters == pytest.approx(
+        402.336, abs=0.001
+    )
+    assert options.queries[0].distance_around_division_label == "0.25 miles"
+    assert options.queries[0].distance_around_ward_meters == 0
+    assert options.queries[0].distance_around_parish_meters == 0
+
+
+def test_resolve_cli_options_rejects_division_distance_without_division() -> None:
+    """Division distance config should require at least one division filter."""
+    with pytest.raises(
+        ValueError, match="distance_around_division requires at least one division"
+    ):
+        resolve_cli_options(
+            cli_inputs=CliInputs(status="validated"),
+            cli_config=CliConfig(distance_around_division="0.25 miles"),
+        )
+
+
 def test_resolve_cli_options_expands_multiple_wards_from_cli() -> None:
     """Multiple wards should expand into separate location-filtered queries."""
     options = resolve_cli_options(
@@ -318,6 +389,37 @@ def test_resolve_cli_options_expands_multiple_wards_from_cli() -> None:
         ),
         PlanningQuery(
             ward_name="Churchill",
+            status_mode="decided",
+        ),
+    ]
+
+
+def test_resolve_cli_options_expands_multiple_divisions_from_cli() -> None:
+    """Multiple divisions should expand into separate location-filtered queries."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(
+            division=["Cowley", "Leys"],
+            status="both",
+        ),
+        cli_config=CliConfig(),
+    )
+
+    assert options.status_mode == "both"
+    assert options.queries == [
+        PlanningQuery(
+            division_name="Cowley",
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            division_name="Leys",
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            division_name="Cowley",
+            status_mode="decided",
+        ),
+        PlanningQuery(
+            division_name="Leys",
             status_mode="decided",
         ),
     ]

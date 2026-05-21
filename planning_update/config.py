@@ -12,8 +12,8 @@ from .models import (
 )
 
 
-def parse_wards(value: Any) -> list[str]:
-    """Parse ward config values into a deduplicated list."""
+def parse_locations(value: Any, *, kind: str) -> list[str]:
+    """Parse location config values into a deduplicated list."""
     if value is None:
         return []
 
@@ -23,18 +23,28 @@ def parse_wards(value: Any) -> list[str]:
     elif isinstance(value, list):
         parts = [str(item) for item in value]
     else:
-        raise TypeError("ward must be provided as a comma-delimited string or list")
+        raise TypeError(f"{kind} must be provided as a comma-delimited string or list")
 
-    normalized_wards: list[str] = []
+    normalized_locations: list[str] = []
     seen: set[str] = set()
     for part in parts:
-        ward = part.strip()
-        normalized_key = ward.lower()
-        if not ward or normalized_key in seen:
+        location = part.strip()
+        normalized_key = location.lower()
+        if not location or normalized_key in seen:
             continue
         seen.add(normalized_key)
-        normalized_wards.append(ward)
-    return normalized_wards
+        normalized_locations.append(location)
+    return normalized_locations
+
+
+def parse_wards(value: Any) -> list[str]:
+    """Parse ward config values into a deduplicated list."""
+    return parse_locations(value, kind="ward")
+
+
+def parse_divisions(value: Any) -> list[str]:
+    """Parse division config values into a deduplicated list."""
+    return parse_locations(value, kind="division")
 
 
 def parse_keywords(value: Any) -> list[str]:
@@ -89,9 +99,9 @@ def resolve_cli_options(
 
     | Input mode    | Query scopes                                                           |
     | ------------- | ---------------------------------------------------------------------- |
-    | keyword only  | One all-ward/all-parish keyword scope                                  |
-    | location only | One scope per configured ward plus one scope for a configured parish   |
-    | both          | Location scopes plus one all-ward/all-parish keyword scope             |
+    | keyword only  | One all-ward/all-parish/all-division keyword scope                     |
+    | location only | One scope per configured ward/division plus one configured parish      |
+    | both          | Location scopes plus one all-ward/all-parish/all-division keyword scope |
 
     If we have both we do the location-filtered queries first.
     """
@@ -102,6 +112,9 @@ def resolve_cli_options(
     parish_name = (
         cli_inputs.parish if cli_inputs.parish is not None else cli_config.parish
     )
+    division_names = parse_divisions(
+        cli_inputs.division if cli_inputs.division is not None else cli_config.division
+    )
     requested_week = cli_inputs.week if cli_inputs.week is not None else cli_config.week
     keywords = parse_keywords(
         cli_inputs.keywords if cli_inputs.keywords is not None else cli_config.keywords
@@ -109,14 +122,18 @@ def resolve_cli_options(
     major = cli_inputs.major if cli_inputs.major is not None else cli_config.major
     distance_around_ward_meters = cli_config.distance_around_ward
     distance_around_parish_meters = cli_config.distance_around_parish
+    distance_around_division_meters = cli_config.distance_around_division
     # These are for the final report card so it's what the user specified in the config, not the normalized distance value.
     distance_around_ward_label = cli_config.distance_around_ward_label
     distance_around_parish_label = cli_config.distance_around_parish_label
+    distance_around_division_label = cli_config.distance_around_division_label
 
     if distance_around_ward_meters > 0 and not ward_names:
         raise ValueError("distance_around_ward requires at least one ward.")
     if distance_around_parish_meters > 0 and parish_name is None:
         raise ValueError("distance_around_parish requires a parish.")
+    if distance_around_division_meters > 0 and not division_names:
+        raise ValueError("distance_around_division requires at least one division.")
 
     query_variants: list[dict[str, object]] = []
     for ward_name in ward_names:
@@ -137,21 +154,31 @@ def resolve_cli_options(
                 "distance_around_parish_label": distance_around_parish_label,
             }
         )
+    for division_name in division_names:
+        query_variants.append(
+            {
+                "division_name": division_name,
+                "requested_week": requested_week,
+                "distance_around_division_meters": distance_around_division_meters,
+                "distance_around_division_label": distance_around_division_label,
+            }
+        )
     if (
         not ward_names
         and parish_name is None
+        and not division_names
         and not keywords
         and (not major or status_mode == "decided")
     ):
-        # Fall back to the default all-ward/all-parish query when no other
-        # weekly-list scope exists.
+        # Fall back to the default all-location query when no other weekly-list
+        # scope exists.
         query_variants.append(
             {
                 "requested_week": requested_week,
             }
         )
     if keywords:
-        # Keyword searches always run across all wards/parishes.
+        # Keyword searches always run across all locations.
         query_variants.append(
             {
                 "keywords": keywords,
@@ -160,7 +187,7 @@ def resolve_cli_options(
         )
     if major:
         # Major-application matching runs against the current major application
-        # list so it always searches across all wards/parishes first.
+        # list so it always searches across all locations first.
         query_variants.append(
             {
                 "major": True,

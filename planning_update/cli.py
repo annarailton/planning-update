@@ -81,6 +81,15 @@ def run(
             help="Optional human-readable parish name to query. Defaults to all parishes."
         ),
     ] = None,
+    division: Annotated[
+        list[str] | None,
+        typer.Option(
+            help=(
+                "Optional human-readable county division name to query. Repeat "
+                "--division to search multiple divisions. Defaults to all divisions."
+            )
+        ),
+    ] = None,
     status: Annotated[
         CliStatusMode | None,
         typer.Option(
@@ -126,6 +135,7 @@ def run(
                 debug=debug,
                 ward=ward,
                 parish=parish,
+                division=division,
                 status=status,
                 week=week,
                 keywords=keywords,

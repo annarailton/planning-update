@@ -8,12 +8,12 @@ https://public.oxford.gov.uk/online-applications/search.do?action=weeklyList
 
 - CLI that grabs applications by:
   - Date (defaults to latest week)
-  - Ward(s)
-  - Parish
+  - Ward(s) / County division(s) / Parish(es)
   - Keywords in the application description
   - Major applications listed on Oxford City Council's current major applications page
   - Going to an upcoming planning or planning review committee
 - Produces summary with descriptions and links
+- Calculates and adds the call-in deadline for validated applications
 - Config for preferences
 
 ## Current scraper

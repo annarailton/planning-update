@@ -343,6 +343,36 @@ def test_filter_applications_by_ward_distance_keeps_only_matching_parish_postcod
     assert filtered[0].inclusion_reason == "Littlemore + 0.25 miles"
 
 
+def test_filter_applications_by_ward_distance_keeps_only_matching_division_postcodes(
+    application_factory: Callable[..., Application], monkeypatch
+) -> None:
+    """Distance filtering should also work against division boundaries."""
+    applications = [
+        application_factory(address="Cowley Road Oxford OX4 2RD"),
+        application_factory(
+            application_ref={"value": "26/00282/FUL"},
+            address="Banbury Town Hall Bridge Street Banbury OX16 5QB",
+        ),
+    ]
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.postcode_is_within_division_distance",
+        lambda postcode, division_name, *, distance_meters: postcode == "OX4 2RD",
+    )
+
+    filtered = filter_applications_by_ward_distance(
+        applications,
+        query=PlanningQuery(
+            division_name="Cowley",
+            distance_around_division_meters=402.336,
+            distance_around_division_label="0.25 miles",
+        ),
+    )
+
+    assert [application.postcode for application in filtered] == ["OX4 2RD"]
+    assert filtered[0].inclusion_reason == "Cowley + 0.25 miles"
+
+
 def test_fetch_latest_applications_does_not_hit_major_page_when_disabled(
     application_factory: Callable[..., Application], monkeypatch
 ) -> None:
@@ -701,16 +731,20 @@ def test_enrich_application_reuses_cached_details_by_application_ref(
     monkeypatch.setattr("planning_update.services.scraper.fetch_page", fail_fetch_page)
     monkeypatch.setattr(
         "planning_update.services.scraper.lookup_postcode_in_oxford_wards",
-        lambda postcode: (_ for _ in ()).throw(
-            AssertionError(
-                "postcode lookup should not be called when details are cached"
-            )
-        ),
+        lambda postcode: type(
+            "LookupResult",
+            (),
+            {
+                "ward_name": "Fresh Ward",
+                "parish_name": None,
+                "division_name": "Fresh Division",
+            },
+        )(),
     )
 
     enriched = enrich_application(
         requests.Session(),
-        application_factory(),
+        application_factory(address="169 Windmill Road Oxford Oxfordshire OX3 7DW"),
         query=PlanningQuery(status_mode="decided"),
         cache_dir=tmp_path,
     )
@@ -719,6 +753,7 @@ def test_enrich_application_reuses_cached_details_by_application_ref(
     assert enriched.decision == "Approved"
     assert enriched.decided is not None
     assert enriched.ward == "Churchill Ward"
+    assert enriched.division == "Fresh Division"
 
 
 def test_enrich_application_refreshes_stale_cached_decision_details(
@@ -757,14 +792,20 @@ def test_enrich_application_refreshes_stale_cached_decision_details(
     )
     monkeypatch.setattr(
         "planning_update.services.scraper.lookup_postcode_in_oxford_wards",
-        lambda postcode: (_ for _ in ()).throw(
-            AssertionError("postcode lookup should not be called when ward is cached")
-        ),
+        lambda postcode: type(
+            "LookupResult",
+            (),
+            {
+                "ward_name": "Fresh Ward",
+                "parish_name": None,
+                "division_name": "Fresh Division",
+            },
+        )(),
     )
 
     enriched = enrich_application(
         requests.Session(),
-        application_factory(),
+        application_factory(address="169 Windmill Road Oxford Oxfordshire OX3 7DW"),
         query=PlanningQuery(status_mode="decided"),
         cache_dir=tmp_path,
     )
@@ -772,6 +813,8 @@ def test_enrich_application_refreshes_stale_cached_decision_details(
     assert requested_urls == ["https://example.com/app"]
     assert enriched.status == "Decided"
     assert enriched.decision == "Approved"
+    assert enriched.ward == "Churchill Ward"
+    assert enriched.division == "Fresh Division"
 
 
 def test_enrich_application_pauses_between_enrichment_requests(

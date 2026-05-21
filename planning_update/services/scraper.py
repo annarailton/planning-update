@@ -15,6 +15,7 @@ from ..constants import (
 )
 from ..lookup.postcode_lookup import (
     lookup_postcode_in_oxford_wards,
+    postcode_is_within_division_distance,
     postcode_is_within_parish_distance,
     postcode_is_within_ward_distance,
 )
@@ -104,7 +105,9 @@ def enrich_application(
 
     updated_fields: dict[str, object] = {}
     if application.postcode is not None and (
-        application.ward is None or application.parish is None
+        application.ward is None
+        or application.parish is None
+        or application.division is None
     ):
         try:
             postcode_lookup = lookup_postcode_in_oxford_wards(application.postcode)
@@ -115,6 +118,12 @@ def enrich_application(
                 updated_fields["ward"] = postcode_lookup.ward_name
             if application.parish is None:
                 updated_fields["parish"] = postcode_lookup.parish_name
+            if application.division is None:
+                updated_fields["division"] = getattr(
+                    postcode_lookup,
+                    "division_name",
+                    None,
+                )
 
     decision_fields_missing = (
         application.status is None
@@ -254,8 +263,12 @@ def filter_applications_by_major(
 def filter_applications_by_ward_distance(
     applications: list[Application], *, query: PlanningQuery
 ) -> list[Application]:
-    """Filter applications to those matching the configured ward/parish scope."""
-    if query.ward_name is None and query.parish_name is None:
+    """Filter applications to those matching the configured location scope."""
+    if (
+        query.ward_name is None
+        and query.parish_name is None
+        and query.division_name is None
+    ):
         return applications
 
     matching_applications: list[Application] = []
@@ -264,6 +277,9 @@ def filter_applications_by_ward_distance(
     )
     target_parish_name = (
         query.resolved_parish_name() if query.parish_name is not None else None
+    )
+    target_division_name = (
+        query.resolved_division_name() if query.division_name is not None else None
     )
     target_ward_label = (
         query.ward_name
@@ -275,6 +291,11 @@ def filter_applications_by_ward_distance(
         if query.parish_name is not None and query.uses_distance_around_parish()
         else None
     )
+    target_division_label = (
+        query.division_name
+        if query.division_name is not None and query.uses_distance_around_division()
+        else None
+    )
     ward_distance_label = (
         query.distance_around_ward_label if query.uses_distance_around_ward() else None
     )
@@ -283,10 +304,16 @@ def filter_applications_by_ward_distance(
         if query.uses_distance_around_parish()
         else None
     )
+    division_distance_label = (
+        query.distance_around_division_label
+        if query.uses_distance_around_division()
+        else None
+    )
     for application in applications:
         if application.postcode is None:
             continue
         try:
+            postcode_lookup = None
             matches_ward = True
             if target_ward_name is not None:
                 if query.uses_distance_around_ward():
@@ -296,10 +323,10 @@ def filter_applications_by_ward_distance(
                         distance_meters=query.distance_around_ward_meters,
                     )
                 else:
-                    matches_ward = (
-                        lookup_postcode_in_oxford_wards(application.postcode).ward_name
-                        == target_ward_name
+                    postcode_lookup = lookup_postcode_in_oxford_wards(
+                        application.postcode
                     )
+                    matches_ward = postcode_lookup.ward_name == target_ward_name
 
             matches_parish = True
             if target_parish_name is not None:
@@ -310,14 +337,31 @@ def filter_applications_by_ward_distance(
                         distance_meters=query.distance_around_parish_meters,
                     )
                 else:
-                    matches_parish = (
-                        lookup_postcode_in_oxford_wards(
+                    if postcode_lookup is None:
+                        postcode_lookup = lookup_postcode_in_oxford_wards(
                             application.postcode
-                        ).parish_name
-                        == target_parish_name
+                        )
+                    matches_parish = postcode_lookup.parish_name == target_parish_name
+
+            matches_division = True
+            if target_division_name is not None:
+                if query.uses_distance_around_division():
+                    matches_division = postcode_is_within_division_distance(
+                        application.postcode,
+                        target_division_name,
+                        distance_meters=query.distance_around_division_meters,
+                    )
+                else:
+                    if postcode_lookup is None:
+                        postcode_lookup = lookup_postcode_in_oxford_wards(
+                            application.postcode
+                        )
+                    matches_division = (
+                        getattr(postcode_lookup, "division_name", None)
+                        == target_division_name
                     )
 
-            if matches_ward and matches_parish:
+            if matches_ward and matches_parish and matches_division:
                 inclusion_reasons: list[str] = []
                 if target_ward_label is not None and ward_distance_label is not None:
                     inclusion_reasons.append(
@@ -329,6 +373,13 @@ def filter_applications_by_ward_distance(
                 ):
                     inclusion_reasons.append(
                         f"{target_parish_label} + {parish_distance_label}"
+                    )
+                if (
+                    target_division_label is not None
+                    and division_distance_label is not None
+                ):
+                    inclusion_reasons.append(
+                        f"{target_division_label} + {division_distance_label}"
                     )
                 matching_applications.append(
                     Application.model_validate(

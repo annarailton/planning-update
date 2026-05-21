@@ -271,6 +271,7 @@ def test_build_search_criteria_includes_keywords_and_major_from_all_queries() ->
         "Distance around ward": "0.25 miles",
         "Parish": "All parishes",
         "Distance around parish": "0.4 km",
+        "Division": "All divisions",
         "Mode": "Validated and decided in this week",
         "Week": "30 Mar 2026",
         "Keywords": "photovoltaics, heat pump",
@@ -353,6 +354,35 @@ def test_build_search_criteria_includes_additive_parish_scope() -> None:
 
     assert search_criteria["Wards"] == "Churchill Ward, Marston Ward"
     assert search_criteria["Parish"] == "Old Marston Parish Council"
+
+
+def test_build_search_criteria_uses_plural_divisions_for_multiple_location_queries() -> (
+    None
+):
+    """Search criteria should summarize multiple configured divisions."""
+    search_criteria = html_render.build_search_criteria(
+        options=ResolvedCliOptions(
+            status_mode="validated",
+            queries=[
+                PlanningQuery(
+                    division_name="Cowley",
+                    distance_around_division_meters=402.336,
+                    distance_around_division_label="0.25 miles",
+                    status_mode="validated",
+                ),
+                PlanningQuery(
+                    division_name="Leys",
+                    distance_around_division_meters=402.336,
+                    distance_around_division_label="0.25 miles",
+                    status_mode="validated",
+                ),
+            ],
+        ),
+    )
+
+    assert search_criteria["Divisions"] == "Cowley, Leys"
+    assert search_criteria["Distance around divisions"] == "0.25 miles"
+    assert "Division" not in search_criteria
 
 
 def test_render_application_html_shows_search_criteria_in_header(

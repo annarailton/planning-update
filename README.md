@@ -18,13 +18,13 @@ https://public.oxford.gov.uk/online-applications/search.do?action=weeklyList
 
 ## Current scraper
 
-`main.py` fetches planning applications for the selected ward/parish filters
+`main.py` fetches planning applications for the selected ward/parish/division filters
 using the weekly list filters for `validated`, `decided`, or `both`.
-When `keywords` are supplied, the scraper searches across all wards and parishes
-for proposal text matches instead of applying ward/parish filters.
-When `major = true` is supplied, the scraper also searches across all wards and
-parishes, scrapes the live Oxford City Council major-applications page, and
-keeps only weekly-list results whose `ApplicationRef` appears there.
+When `keywords` are supplied, the scraper searches across all locations for
+proposal text matches instead of applying ward/parish/division filters.
+When `major = true` is supplied, the scraper also searches across all locations,
+scrapes the live Oxford City Council major-applications page, and keeps only
+weekly-list results whose `ApplicationRef` appears there.
 
 The lookup data lives in [ward_mappings.json](/Users/annarailton/projects/planning-update/ward_mappings.json),
 and [location_lookup.py](/Users/annarailton/projects/planning-update/location_lookup.py) loads it for the scraper.
@@ -38,7 +38,7 @@ available week from the dropdown.
 The scraper works in three stages:
 
 1. Build the weekly-list search payload.
-   `PlanningQuery` in [models.py](/Users/annarailton/projects/planning-update/models.py) resolves the optional human-readable ward and parish names to Oxford's internal codes and serializes the form payload for the selected week and mode (`validated` or `decided`). The CLI can also run `both`, which executes those two queries sequentially and renders them in separate sections.
+   `PlanningQuery` in [models.py](/Users/annarailton/projects/planning-update/models.py) resolves optional human-readable ward, parish, and division names and serializes the form payload for the selected week and mode (`validated` or `decided`). The CLI can also run `both`, which executes those two queries sequentially and renders them in separate sections.
 
 2. Submit the weekly-list search and collect result pages.
    [scraper.py](/Users/annarailton/projects/planning-update/scraper.py) fetches the weekly-list form to get the CSRF token and available weeks, submits the query, and follows any pagination links so all result cards are collected rather than only the first page.
@@ -74,6 +74,8 @@ uv run oxford-weekly
 uv run oxford-weekly --debug
 # Filter to one parish
 uv run oxford-weekly --parish "Littlemore"
+# Filter to one county division
+uv run oxford-weekly --division "Cowley"
 # Filter to one ward
 uv run oxford-weekly --ward "churchill"
 # Filter to multiple wards
@@ -99,17 +101,20 @@ Example:
 ```toml
 debug = true
 ward = ["churchill", "hinksey park"]
+parish = ["Old Marston"]
+division = ["Cowley", "Leys"]
 status_mode = "validated"
 distance_around_ward = "0.25 miles"
-distance_around_parish = "0.4 km"
+distance_around_parish = "100m"
+distance_around_division = "0.4 km"
 keywords = "photovoltaics, heat pump, ASHP, PV"
 major = true
 email_to = "example@gmail.com"
 ```
 
-`distance_around_ward` and `distance_around_parish` are optional and default to
-`0`. They accept distance values with units such as `"0.25 miles"` or
-`"0.4 km"`.
+`distance_around_ward`, `distance_around_parish`, and
+`distance_around_division` are optional and default to `0`. They accept distance
+values with units such as `"0.25 miles"` or `"0.4 km"`.
 
 Examples with config:
 

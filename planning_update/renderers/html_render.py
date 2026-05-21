@@ -169,6 +169,14 @@ def build_search_criteria(
         ),
         None,
     )
+    division_distance = next(
+        (
+            query.distance_around_division_label
+            for query in location_queries
+            if query.distance_around_division_label
+        ),
+        None,
+    )
     ward_names = list(
         dict.fromkeys(
             # Distance-buffered ward searches intentionally send no ward code
@@ -183,6 +191,13 @@ def build_search_criteria(
             query.resolved_parish_name()
             for query in location_queries
             if query.parish_name is not None
+        )
+    )
+    division_names = list(
+        dict.fromkeys(
+            query.resolved_division_name()
+            for query in location_queries
+            if query.division_name is not None
         )
     )
 
@@ -210,6 +225,30 @@ def build_search_criteria(
                 parish_names[0]
                 if parish_names
                 else primary_query.resolved_parish_name()
+            ),
+            **criteria,
+        }
+    if len(division_names) > 1:
+        criteria = {
+            "Divisions": ", ".join(division_names),
+            **(
+                {"Distance around divisions": division_distance}
+                if division_distance
+                else {}
+            ),
+            **criteria,
+        }
+    else:
+        criteria = {
+            "Division": (
+                division_names[0]
+                if division_names
+                else primary_query.resolved_division_name()
+            ),
+            **(
+                {"Distance around division": division_distance}
+                if division_distance
+                else {}
             ),
             **criteria,
         }
@@ -285,6 +324,7 @@ def render_application_html(
             included_because = included_because_text(application)
             fields = [
                 ("Ward", escape(application.ward or "Not provided"), ""),
+                ("Division", escape(application.division or "Not provided"), ""),
                 (
                     "Status",
                     format_optional_text(application.status),

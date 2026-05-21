@@ -74,6 +74,8 @@ uv run oxford-weekly
 uv run oxford-weekly --debug
 # Filter to one parish
 uv run oxford-weekly --parish "Littlemore"
+# Filter to multiple parishes
+uv run oxford-weekly --parish "Littlemore" --parish "Old Marston"
 # Filter to one county division
 uv run oxford-weekly --division "Cowley"
 # Filter to one ward
@@ -82,7 +84,7 @@ uv run oxford-weekly --ward "churchill"
 uv run oxford-weekly --ward "churchill" --ward "hinksey park"
 # Query an explicit week from the Oxford dropdown
 uv run oxford-weekly --week "30 Mar 2026"
-# Match keywords across all wards and parishes
+# Match keywords across all locations
 uv run oxford-weekly --keywords "photovoltaics, heat pump, ASHP, PV"
 ```
 
@@ -101,7 +103,7 @@ Example:
 ```toml
 debug = true
 ward = ["churchill", "hinksey park"]
-parish = ["Old Marston"]
+parish = ["Old Marston", "Littlemore"]
 division = ["Cowley", "Leys"]
 status_mode = "validated"
 distance_around_ward = "0.25 miles"

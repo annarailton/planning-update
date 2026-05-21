@@ -1,0 +1,33 @@
+{
+  "source_service_url": "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/CED_MAY_2025_EN_BFE/FeatureServer",
+  "source_url": "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/CED_MAY_2025_EN_BFE/FeatureServer/0/query",
+  "query_params": {
+    "where": "1=1",
+    "outFields": "*",
+    "f": "geojson",
+    "outSR": "4326",
+    "geometryType": "esriGeometryEnvelope",
+    "inSR": "4326",
+    "spatialRel": "esriSpatialRelIntersects",
+    "geometry": "-1.30422980209226,51.7109836861506,-1.17579388766401,51.7962718512679"
+  },
+  "fetched_at_utc": "2026-05-21T18:18:34.976391+00:00",
+  "feature_count": 13,
+  "division_names": [
+    "Bartlemas",
+    "Barton, Sandhills & Risinghurst",
+    "Churchill & Lye Valley",
+    "Cowley",
+    "Headington & Quarry",
+    "Isis",
+    "Jericho & Osney",
+    "Leys",
+    "Marston & Northway",
+    "Parks",
+    "Rose Hill & Littlemore",
+    "Summertown & Walton Manor",
+    "Wolvercote & Cutteslowe"
+  ],
+  "filter": "County divisions with meaningful intersection against data/boundaries/oxford_city_wards.geojson; tiny edge slivers below 1e-06 square degrees are ignored.",
+  "notes": "Oxford county division boundaries filtered from ONS Open Geography County Electoral Division (May 2025) Boundaries EN BFE."
+}

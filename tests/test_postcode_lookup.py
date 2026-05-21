@@ -6,6 +6,7 @@ from planning_update.constants import CODEPOINT_CSV_PATH
 from planning_update.lookup.postcode_lookup import (
     lookup_postcode_in_oxford_wards,
     normalize_postcode,
+    postcode_is_within_division_distance,
     postcode_is_within_parish_distance,
     postcode_is_within_ward_distance,
 )
@@ -75,6 +76,7 @@ def test_lookup_postcode_in_oxford_wards_returns_matching_ward(
         "Old Marston",
         "Risinghurst and Sandhills",
     }
+    assert result.division_name is not None
 
 
 @pytest.mark.parametrize(
@@ -96,6 +98,7 @@ def test_lookup_postcode_in_oxford_wards_reports_outside_oxford(
 
     assert result.ward_name is None
     assert result.parish_name is None
+    assert result.division_name is None
 
 
 @pytest.mark.parametrize(
@@ -156,6 +159,22 @@ def test_postcode_missing_from_codepoint_csv(
             False,
             id="parish-outside-boundary",
         ),
+        pytest.param(
+            postcode_is_within_division_distance,
+            "OX4 2ES",
+            "Cowley",
+            0,
+            True,
+            id="division-inside-boundary",
+        ),
+        pytest.param(
+            postcode_is_within_division_distance,
+            "OX16 5QB",
+            "Cowley",
+            402.336,
+            False,
+            id="division-outside-boundary",
+        ),
     ],
 )
 def test_postcode_is_within_boundary_distance(
@@ -165,7 +184,7 @@ def test_postcode_is_within_boundary_distance(
     distance_meters: float,
     expected: bool,
 ) -> None:
-    """Ward/parish distance helpers should accept inside points and reject faraway ones."""
+    """Boundary distance helpers should accept inside points and reject faraway ones."""
     assert (
         lookup_function(
             postcode,

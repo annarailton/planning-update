@@ -13,7 +13,12 @@ from pyproj import Transformer
 from shapely.geometry import Point, shape
 from shapely.ops import transform
 
-from ..constants import BOUNDARIES_PATH, CODEPOINT_CSV_PATH, PARISH_BOUNDARIES_PATH
+from ..constants import (
+    BOUNDARIES_PATH,
+    CODEPOINT_CSV_PATH,
+    DIVISION_BOUNDARIES_PATH,
+    PARISH_BOUNDARIES_PATH,
+)
 from .location_lookup import normalize_name
 
 # Code-Point Open and the checked-in ward boundaries use different coordinate
@@ -27,7 +32,7 @@ from .location_lookup import normalize_name
 # We keep a shared transformer here so postcode points can be converted once
 # before:
 #
-# - the point-in-polygon ward check
+# - the point-in-polygon boundary checks
 # - printing user-friendly latitude / longitude values
 #
 # `always_xy=True` keeps the axis order explicit:
@@ -51,6 +56,7 @@ class PostcodeLookupResult:
     northing: int
     ward_name: str | None
     parish_name: str | None
+    division_name: str | None
 
 
 def normalize_postcode(postcode: str) -> str:
@@ -88,6 +94,18 @@ def load_parish_boundaries(
 
 
 @lru_cache(maxsize=None)
+def load_division_boundaries(
+    path: Path = DIVISION_BOUNDARIES_PATH,
+) -> list[tuple[str, object]]:
+    """Load county division shapes from the checked-in Oxford GeoJSON file."""
+    geojson = json.loads(path.read_text(encoding="utf-8"))
+    return [
+        (feature["properties"]["NAME"], shape(feature["geometry"]))
+        for feature in geojson["features"]
+    ]
+
+
+@lru_cache(maxsize=None)
 def load_ward_boundaries_bng(path: Path = BOUNDARIES_PATH) -> dict[str, object]:
     """Load ward shapes transformed into British National Grid coordinates."""
     return {
@@ -104,6 +122,20 @@ def load_parish_boundaries_bng(
     return {
         normalize_name(parish_name): transform(WGS84_TO_BNG.transform, parish_geometry)
         for parish_name, parish_geometry in load_parish_boundaries(path)
+    }
+
+
+@lru_cache(maxsize=None)
+def load_division_boundaries_bng(
+    path: Path = DIVISION_BOUNDARIES_PATH,
+) -> dict[str, object]:
+    """Load division shapes transformed into British National Grid coordinates."""
+    return {
+        normalize_name(division_name, removable_suffixes=("ed",)): transform(
+            WGS84_TO_BNG.transform,
+            division_geometry,
+        )
+        for division_name, division_geometry in load_division_boundaries(path)
     }
 
 
@@ -133,6 +165,7 @@ def lookup_postcode_in_oxford_wards(
     codepoint_csv_path: Path = CODEPOINT_CSV_PATH,
     boundaries_path: Path = BOUNDARIES_PATH,
     parish_boundaries_path: Path = PARISH_BOUNDARIES_PATH,
+    division_boundaries_path: Path = DIVISION_BOUNDARIES_PATH,
 ) -> PostcodeLookupResult:
     """Resolve a postcode to lat/lon and the containing Oxford boundaries.
 
@@ -159,6 +192,14 @@ def lookup_postcode_in_oxford_wards(
             parish_name = candidate_parish_name
             break
 
+    division_name = None
+    for candidate_division_name, division_geometry in load_division_boundaries(
+        division_boundaries_path
+    ):
+        if division_geometry.covers(point):
+            division_name = candidate_division_name
+            break
+
     return PostcodeLookupResult(
         postcode=postcode,
         normalized_postcode=normalized_postcode,
@@ -168,6 +209,7 @@ def lookup_postcode_in_oxford_wards(
         northing=northing,
         ward_name=ward_name,
         parish_name=parish_name,
+        division_name=division_name,
     )
 
 
@@ -221,3 +263,29 @@ def postcode_is_within_parish_distance(
         return parish_geometry.covers(postcode_point)
 
     return parish_geometry.buffer(distance_meters).covers(postcode_point)
+
+
+def postcode_is_within_division_distance(
+    postcode: str,
+    division_name: str,
+    *,
+    distance_meters: float,
+    codepoint_csv_path: Path = CODEPOINT_CSV_PATH,
+    boundaries_path: Path = DIVISION_BOUNDARIES_PATH,
+) -> bool:
+    """Return whether a postcode lies inside or near an Oxford division boundary."""
+    _, easting, northing = lookup_postcode_row(
+        postcode,
+        codepoint_csv_path=codepoint_csv_path,
+    )
+    division_geometry = load_division_boundaries_bng(boundaries_path).get(
+        normalize_name(division_name, removable_suffixes=("ed",))
+    )
+    if division_geometry is None:
+        raise ValueError(f"Unknown division boundary '{division_name}'.")
+
+    postcode_point = Point(easting, northing)
+    if distance_meters <= 0:
+        return division_geometry.covers(postcode_point)
+
+    return division_geometry.buffer(distance_meters).covers(postcode_point)

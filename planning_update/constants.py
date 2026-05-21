@@ -4,21 +4,12 @@ from pathlib import Path
 
 # Ward, parish, and postcode data locations
 WARD_DATA_PATH = Path(__file__).with_name("lookup") / "ward_mappings.json"
-BOUNDARIES_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "data"
-    / "boundaries"
-    / "oxford_city_wards.geojson"
-)
-PARISH_BOUNDARIES_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "data"
-    / "boundaries"
-    / "oxford_city_parishes.geojson"
-)
-CODEPOINT_CSV_PATH = (
-    Path(__file__).resolve().parents[1] / "data" / "code_point_postcodes" / "ox.csv"
-)
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+BOUNDARIES_DIR = DATA_DIR / "boundaries"
+BOUNDARIES_PATH = BOUNDARIES_DIR / "oxford_city_wards.geojson"
+PARISH_BOUNDARIES_PATH = BOUNDARIES_DIR / "oxford_city_parishes.geojson"
+DIVISION_BOUNDARIES_PATH = BOUNDARIES_DIR / "oxford_city_county_divisions.geojson"
+CODEPOINT_CSV_PATH = DATA_DIR / "code_point_postcodes" / "ox.csv"
 FUZZY_MATCH_THRESHOLD = 85
 
 # Planning website stuff

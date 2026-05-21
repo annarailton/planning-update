@@ -76,9 +76,12 @@ def run(
         ),
     ] = None,
     parish: Annotated[
-        str | None,
+        list[str] | None,
         typer.Option(
-            help="Optional human-readable parish name to query. Defaults to all parishes."
+            help=(
+                "Optional human-readable parish name to query. Repeat --parish "
+                "to search multiple parishes. Defaults to all parishes."
+            )
         ),
     ] = None,
     division: Annotated[
@@ -107,7 +110,7 @@ def run(
         str | None,
         typer.Option(
             "--keywords",
-            help="Comma-delimited proposal keywords to match across all wards and parishes.",
+            help="Comma-delimited proposal keywords to match across all locations.",
         ),
     ] = None,
     email_to: Annotated[

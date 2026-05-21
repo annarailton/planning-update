@@ -42,6 +42,11 @@ def parse_wards(value: Any) -> list[str]:
     return parse_locations(value, kind="ward")
 
 
+def parse_parishes(value: Any) -> list[str]:
+    """Parse parish config values into a deduplicated list."""
+    return parse_locations(value, kind="parish")
+
+
 def parse_divisions(value: Any) -> list[str]:
     """Parse division config values into a deduplicated list."""
     return parse_locations(value, kind="division")
@@ -100,7 +105,7 @@ def resolve_cli_options(
     | Input mode    | Query scopes                                                           |
     | ------------- | ---------------------------------------------------------------------- |
     | keyword only  | One all-ward/all-parish/all-division keyword scope                     |
-    | location only | One scope per configured ward/division plus one configured parish      |
+    | location only | One scope per configured ward/parish/division                          |
     | both          | Location scopes plus one all-ward/all-parish/all-division keyword scope |
 
     If we have both we do the location-filtered queries first.
@@ -109,7 +114,7 @@ def resolve_cli_options(
     ward_names = parse_wards(
         cli_inputs.ward if cli_inputs.ward is not None else cli_config.ward
     )
-    parish_name = (
+    parish_names = parse_parishes(
         cli_inputs.parish if cli_inputs.parish is not None else cli_config.parish
     )
     division_names = parse_divisions(
@@ -130,8 +135,8 @@ def resolve_cli_options(
 
     if distance_around_ward_meters > 0 and not ward_names:
         raise ValueError("distance_around_ward requires at least one ward.")
-    if distance_around_parish_meters > 0 and parish_name is None:
-        raise ValueError("distance_around_parish requires a parish.")
+    if distance_around_parish_meters > 0 and not parish_names:
+        raise ValueError("distance_around_parish requires at least one parish.")
     if distance_around_division_meters > 0 and not division_names:
         raise ValueError("distance_around_division requires at least one division.")
 
@@ -145,7 +150,7 @@ def resolve_cli_options(
                 "distance_around_ward_label": distance_around_ward_label,
             }
         )
-    if parish_name is not None:
+    for parish_name in parish_names:
         query_variants.append(
             {
                 "parish_name": parish_name,
@@ -165,7 +170,7 @@ def resolve_cli_options(
         )
     if (
         not ward_names
-        and parish_name is None
+        and not parish_names
         and not division_names
         and not keywords
         and (not major or status_mode == "decided")

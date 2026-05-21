@@ -8,6 +8,7 @@ from planning_update.config import (
     load_cli_config,
     parse_divisions,
     parse_keywords,
+    parse_parishes,
     parse_wards,
     resolve_cli_options,
 )
@@ -87,6 +88,19 @@ def test_load_cli_config_reads_ward_lists(tmp_path: Path) -> None:
     config = load_cli_config(path=config_path)
 
     assert config.ward == ["churchill", "hinksey park"]
+
+
+def test_load_cli_config_reads_parish_lists(tmp_path: Path) -> None:
+    """Config loader should accept TOML parish lists."""
+    config_path = tmp_path / "planning_update.toml"
+    config_path.write_text(
+        'parish = ["Littlemore", "Old Marston"]',
+        encoding="utf-8",
+    )
+
+    config = load_cli_config(path=config_path)
+
+    assert config.parish == ["Littlemore", "Old Marston"]
 
 
 def test_load_cli_config_reads_division_lists(tmp_path: Path) -> None:
@@ -194,6 +208,18 @@ def test_parse_wards_accepts_strings_and_lists() -> None:
     ]
 
 
+def test_parse_parishes_accepts_strings_and_lists() -> None:
+    """Parish parsing should trim and deduplicate string or list input."""
+    assert parse_parishes(" Littlemore , Old Marston, littlemore ") == [
+        "Littlemore",
+        "Old Marston",
+    ]
+    assert parse_parishes(["Littlemore", " Old Marston ", "littlemore"]) == [
+        "Littlemore",
+        "Old Marston",
+    ]
+
+
 def test_parse_divisions_accepts_strings_and_lists() -> None:
     """Division parsing should trim and deduplicate string or list input."""
     assert parse_divisions(" Cowley , Leys, cowley ") == [
@@ -216,6 +242,12 @@ def test_parse_wards_rejects_invalid_types() -> None:
     """Ward parsing should reject unsupported input types."""
     with pytest.raises(TypeError, match="ward must be provided"):
         parse_wards(123)
+
+
+def test_parse_parishes_rejects_invalid_types() -> None:
+    """Parish parsing should reject unsupported input types."""
+    with pytest.raises(TypeError, match="parish must be provided"):
+        parse_parishes(123)
 
 
 def test_parse_divisions_rejects_invalid_types() -> None:
@@ -301,16 +333,16 @@ def test_resolve_cli_options_rejects_distance_without_ward() -> None:
 
 
 def test_resolve_cli_options_applies_distance_around_ward_to_parish_queries() -> None:
-    """Parish distance config should work for parish-filtered queries."""
+    """Parish distance config should work for each parish-filtered query."""
     options = resolve_cli_options(
         cli_inputs=CliInputs(status="validated"),
         cli_config=CliConfig(
-            parish="Littlemore",
+            parish=["Littlemore", "Old Marston"],
             distance_around_parish="0.25 miles",
         ),
     )
 
-    assert len(options.queries) == 1
+    assert len(options.queries) == 2
     assert options.queries[0].parish_name == "Littlemore"
     assert options.queries[0].status_mode == "validated"
     assert options.queries[0].distance_around_parish_meters == pytest.approx(
@@ -318,11 +350,17 @@ def test_resolve_cli_options_applies_distance_around_ward_to_parish_queries() ->
     )
     assert options.queries[0].distance_around_parish_label == "0.25 miles"
     assert options.queries[0].distance_around_ward_meters == 0
+    assert options.queries[1].parish_name == "Old Marston"
+    assert options.queries[1].distance_around_parish_meters == pytest.approx(
+        402.336, abs=0.001
+    )
 
 
 def test_resolve_cli_options_rejects_parish_distance_without_parish() -> None:
-    """Parish distance config should require a parish filter."""
-    with pytest.raises(ValueError, match="distance_around_parish requires a parish"):
+    """Parish distance config should require at least one parish filter."""
+    with pytest.raises(
+        ValueError, match="distance_around_parish requires at least one parish"
+    ):
         resolve_cli_options(
             cli_inputs=CliInputs(status="validated"),
             cli_config=CliConfig(distance_around_parish="0.25 miles"),
@@ -389,6 +427,37 @@ def test_resolve_cli_options_expands_multiple_wards_from_cli() -> None:
         ),
         PlanningQuery(
             ward_name="Churchill",
+            status_mode="decided",
+        ),
+    ]
+
+
+def test_resolve_cli_options_expands_multiple_parishes_from_cli() -> None:
+    """Multiple parishes should expand into separate location-filtered queries."""
+    options = resolve_cli_options(
+        cli_inputs=CliInputs(
+            parish=["Littlemore", "Old Marston"],
+            status="both",
+        ),
+        cli_config=CliConfig(),
+    )
+
+    assert options.status_mode == "both"
+    assert options.queries == [
+        PlanningQuery(
+            parish_name="Littlemore",
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            parish_name="Old Marston",
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            parish_name="Littlemore",
+            status_mode="decided",
+        ),
+        PlanningQuery(
+            parish_name="Old Marston",
             status_mode="decided",
         ),
     ]
@@ -543,12 +612,12 @@ def test_resolve_cli_options_expands_multiple_wards_from_config() -> None:
 
 
 def test_resolve_cli_options_treats_parish_as_additional_location_scope() -> None:
-    """A configured parish should add a query instead of narrowing each ward."""
+    """Configured parishes should add queries instead of narrowing each ward."""
     options = resolve_cli_options(
         cli_inputs=CliInputs(status="validated"),
         cli_config=CliConfig(
             ward=["Churchill", "Marston"],
-            parish="Old Marston",
+            parish=["Old Marston", "Littlemore"],
             distance_around_ward="0.15 miles",
         ),
     )
@@ -568,6 +637,10 @@ def test_resolve_cli_options_treats_parish_as_additional_location_scope() -> Non
         ),
         PlanningQuery(
             parish_name="Old Marston",
+            status_mode="validated",
+        ),
+        PlanningQuery(
+            parish_name="Littlemore",
             status_mode="validated",
         ),
     ]

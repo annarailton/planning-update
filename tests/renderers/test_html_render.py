@@ -134,6 +134,23 @@ def test_render_application_html_shows_call_in_deadline(
     )
 
 
+def test_render_application_html_uses_mobile_friendly_field_layout(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Application field rows should not squeeze two fields into four columns."""
+    html = html_render.render_application_html([application_factory()])
+
+    assert '<td class="card-cell">' in html
+    assert ".card-cell{padding:14px;}" in html
+    assert ".fields{width:100%;table-layout:fixed;}" in html
+    assert "@media screen and (max-width:600px)" in html
+    assert ".field-label,.field-value{display:block;width:auto;" in html
+    assert (
+        '<tr class="field-row"><td class="field-label" valign="top">Ward</td>'
+        '<td class="field-value" valign="top">Churchill Ward</td></tr>'
+    ) in html
+
+
 @pytest.mark.parametrize(
     ("status", "css_class", "css_rule"),
     [

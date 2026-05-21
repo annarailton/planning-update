@@ -291,26 +291,14 @@ def render_application_html(
         fields: list[tuple[str, str, str]],
     ) -> str:
         rows: list[str] = []
-        for index in range(0, len(fields), 2):
-            left_label, left_value, left_class = fields[index]
-            if index + 1 < len(fields):
-                right_label, right_value, right_class = fields[index + 1]
-            else:
-                right_label, right_value, right_class = "", "", ""
-            left_label_class = (
-                " field-label--success" if left_label == "Included because" else ""
-            )
-            right_label_class = (
-                " field-label--success" if right_label == "Included because" else ""
-            )
+        for label, value, value_class in fields:
+            label_class = " field-label--success" if label == "Included because" else ""
 
             rows.append(
                 (
                     '<tr class="field-row">'
-                    f'<td class="field-label{left_label_class}" valign="top">{escape(left_label)}</td>'
-                    f'<td class="field-value{left_class}" valign="top">{left_value}</td>'
-                    f'<td class="field-label{right_label_class}" valign="top">{escape(right_label)}</td>'
-                    f'<td class="field-value{right_class}" valign="top">{right_value}</td>'
+                    f'<td class="field-label{label_class}" valign="top">{escape(label)}</td>'
+                    f'<td class="field-value{value_class}" valign="top">{value}</td>'
                     "</tr>"
                 )
             )
@@ -322,7 +310,7 @@ def render_application_html(
         if not items:
             return (
                 '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="card card--empty">'
-                f'<tr><td><p class="empty-state">{escape(empty_state_message)}</p></td></tr>'
+                f'<tr><td class="card-cell card-cell--empty"><p class="empty-state">{escape(empty_state_message)}</p></td></tr>'
                 "</table>"
             )
 
@@ -402,7 +390,7 @@ def render_application_html(
             cards.append(
                 (
                     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="card">'
-                    "<tr><td>"
+                    '<tr><td class="card-cell">'
                     f'<div class="eyebrow">{escape(application.application_ref.value)}'
                     f' <span class="eyebrow-separator">-</span> <span class="eyebrow-address">{escape(application.address)}</span></div>'
                     f'<h2 class="card-title">{escape(application.proposal)}</h2>'
@@ -439,7 +427,7 @@ def render_application_html(
             cards.append(
                 (
                     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="card">'
-                    "<tr><td>"
+                    '<tr><td class="card-cell">'
                     f'<div class="eyebrow">{escape(application.application_ref.value)}'
                     f' <span class="eyebrow-separator">-</span> <span class="eyebrow-address">{escape(application.address)}</span></div>'
                     f'<h2 class="card-title">{escape(application.proposal)}</h2>'
@@ -543,8 +531,8 @@ def render_application_html(
         ".section-title{margin:18px 0 8px;font-size:18px;line-height:1.2;color:var(--color-text-strong);}"
         ".section-notice{margin:0 0 8px;color:var(--color-text-secondary);font-size:14px;font-weight:700;}"
         ".card{background:var(--color-surface-primary);border:1px solid var(--color-border-subtle);border-radius:12px;box-shadow:0 4px 12px var(--color-shadow);margin-top:12px;}"
-        ".card td{padding:14px;}"
-        ".card--empty td{padding:18px 14px;}"
+        ".card-cell{padding:14px;}"
+        ".card-cell--empty{padding:18px 14px;}"
         ".empty-state{margin:0;font-size:16px;font-weight:700;color:var(--color-text-secondary);}"
         ".eyebrow{font-size:18px;font-weight:700;letter-spacing:0.04em;"
         "text-transform:uppercase;color:var(--color-accent-warm);margin-bottom:8px;}"
@@ -554,11 +542,11 @@ def render_application_html(
         ".card-title{margin:0 0 8px;font-size:20px;line-height:1.25;}"
         ".link-row{margin:0 0 8px;}"
         ".link-row a{display:inline-block;font-size:15px;font-weight:700;padding-left:2px;}"
-        ".fields{width:100%;}"
+        ".fields{width:100%;table-layout:fixed;}"
         ".field-row{background:var(--color-surface-secondary);}"
         ".field-row + .field-row td{border-top:6px solid var(--color-surface-primary);}"
         ".field-label{font-size:12px;font-weight:700;text-transform:uppercase;"
-        "letter-spacing:0.05em;color:var(--color-text-tertiary);padding:9px 8px 9px 12px;width:120px;}"
+        "letter-spacing:0.05em;color:var(--color-text-tertiary);padding:9px 8px 9px 12px;width:150px;}"
         ".field-label--success{color:var(--color-success);}"
         ".field-value{font-size:14px;word-break:break-word;padding:9px 12px 9px 10px;}"
         ".field-value--date-future{color:var(--color-success);font-weight:700;}"
@@ -572,6 +560,20 @@ def render_application_html(
         ".field-value--major-application{color:var(--color-success);font-weight:700;}"
         "a{color:var(--color-link);text-decoration:none;}"
         "a:hover{text-decoration:underline;}"
+        "@media screen and (max-width:600px){"
+        ".content-cell{padding:12px;}"
+        "h1{font-size:24px;line-height:1.2;}"
+        ".card-cell{padding:12px;}"
+        ".eyebrow{font-size:15px;line-height:1.35;}"
+        ".eyebrow-address{display:block;font-size:14px;margin-top:2px;}"
+        ".eyebrow-separator{display:none;}"
+        ".card-title{font-size:18px;line-height:1.3;}"
+        ".field-label,.field-value{display:block;width:auto;padding:8px 10px;}"
+        ".field-label{padding-bottom:2px;}"
+        ".field-value{padding-top:0;}"
+        ".criteria-label,.criteria-value{display:block;width:auto;padding:0 0 4px 0;white-space:normal;}"
+        ".criteria-value{padding-bottom:8px;}"
+        "}"
         "</style>"
         "</head>"
         "<body>"

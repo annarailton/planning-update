@@ -304,8 +304,19 @@ def render_application_html(
             )
         return "".join(rows)
 
+    show_division_field = bool(
+        search_criteria
+        and (
+            "Divisions" in search_criteria
+            or search_criteria.get("Division") not in {None, "All divisions"}
+        )
+    )
+
     def render_cards(
-        items: list[Application], *, empty_state_message: str = "No applications"
+        items: list[Application],
+        *,
+        empty_state_message: str = "No applications",
+        show_decision_fields: bool = True,
     ) -> str:
         if not items:
             return (
@@ -319,7 +330,15 @@ def render_application_html(
             included_because = included_because_text(application)
             fields = [
                 ("Ward", escape(application.ward or "Not provided"), ""),
-                ("Division", escape(application.division or "Not provided"), ""),
+                (
+                    (
+                        "Division",
+                        escape(application.division or "Not provided"),
+                        "",
+                    )
+                    if show_division_field
+                    else None
+                ),
                 (
                     "Status",
                     format_optional_text(application.status),
@@ -349,14 +368,24 @@ def render_application_html(
                     ),
                 ),
                 (
-                    "Decision",
-                    format_optional_text(application.decision),
-                    decision_css_class(application.decision),
+                    (
+                        "Decision",
+                        format_optional_text(application.decision),
+                        decision_css_class(application.decision),
+                    )
+                    if show_decision_fields
+                    else None
                 ),
                 (
-                    "Decided",
-                    format_application_date(application.decided),
-                    decision_date_css_class(application.decided, today=render_today),
+                    (
+                        "Decided",
+                        format_application_date(application.decided),
+                        decision_date_css_class(
+                            application.decided, today=render_today
+                        ),
+                    )
+                    if show_decision_fields
+                    else None
                 ),
                 (
                     (
@@ -453,7 +482,7 @@ def render_application_html(
                     else ""
                 )
                 + (
-                    f"{render_cards(section.applications, empty_state_message=section.empty_state_message)}"
+                    f"{render_cards(section.applications, empty_state_message=section.empty_state_message, show_decision_fields=section.title != 'Validated applications')}"
                 )
             )
             for section in sections

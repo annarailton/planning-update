@@ -151,6 +151,51 @@ def test_render_application_html_uses_mobile_friendly_field_layout(
     ) in html
 
 
+def test_render_application_html_hides_division_without_division_search(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Application cards should not show division unless the search targets one."""
+    html = html_render.render_application_html(
+        [application_factory(division="Cowley")],
+        search_criteria={"Division": "All divisions"},
+    )
+
+    assert '<td class="field-label" valign="top">Division</td>' not in html
+
+
+def test_render_application_html_shows_division_for_division_search(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Application cards should show division when the search targets one."""
+    html = html_render.render_application_html(
+        [application_factory(division="Cowley")],
+        search_criteria={"Division": "Cowley"},
+    )
+
+    assert (
+        '<tr class="field-row"><td class="field-label" valign="top">Division</td>'
+        '<td class="field-value" valign="top">Cowley</td></tr>'
+    ) in html
+
+
+def test_render_application_html_hides_decision_fields_for_validated_sections(
+    application_factory: Callable[..., Application],
+) -> None:
+    """Validated sections should focus on live deadlines, not decision fields."""
+    html = html_render.render_application_html(
+        [],
+        sections=[
+            ApplicationSection(
+                title="Validated applications",
+                applications=[application_factory()],
+            )
+        ],
+    )
+
+    assert '<td class="field-label" valign="top">Decision</td>' not in html
+    assert '<td class="field-label" valign="top">Decided</td>' not in html
+
+
 @pytest.mark.parametrize(
     ("status", "css_class", "css_rule"),
     [

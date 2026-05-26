@@ -49,6 +49,16 @@ def resolve_resend_api_key(*, needs_email: bool) -> str | None:
     return resend_api_key
 
 
+def echo_sent_email_summary(*, recipient: str, email_id: str) -> None:
+    """Print the Resend success line prominently in batch script output."""
+    separator = "=" * 80
+    typer.echo()
+    typer.echo(separator)
+    typer.echo(f"Sent email to {recipient} via Resend ({email_id}).")
+    typer.echo(separator)
+    typer.echo()
+
+
 @app.callback()
 def run(
     config: Annotated[
@@ -219,7 +229,10 @@ def run(
                 config_path=config,
             ),
         )
-        typer.echo(f"Sent email to {options.email_recipient} via Resend ({email_id}).")
+        echo_sent_email_summary(
+            recipient=options.email_recipient,
+            email_id=email_id,
+        )
         typer.echo(f"Saved sent email HTML to {email_log_path}")
 
 

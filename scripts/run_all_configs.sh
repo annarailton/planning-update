@@ -9,14 +9,22 @@ configs_dir="${repo_root}/configs"
 email_logs_dir="${repo_root}/email_logs"
 env_file="${repo_root}/.env"
 uv_bin="/opt/homebrew/bin/uv"
+debug_mode=false
 
-if [ ! -f "${env_file}" ]; then
-  echo "Missing env file: ${env_file}" >&2
+if [ "${1:-}" = "--debug" ]; then
+  debug_mode=true
+elif [ "${#}" -gt 0 ]; then
+  echo "Usage: $0 [--debug]" >&2
   exit 1
 fi
 
 if [ ! -x "${uv_bin}" ]; then
   echo "Missing uv binary: ${uv_bin}" >&2
+  exit 1
+fi
+
+if [ ! -f "${env_file}" ]; then
+  echo "Missing env file: ${env_file}" >&2
   exit 1
 fi
 
@@ -69,7 +77,12 @@ for config_path in "${config_paths[@]}"; do
   fi
 
   echo "Running oxford-weekly for ${config_path}"
-  if ! "${uv_bin}" run oxford-weekly --config "${config_path}"; then
+  command_args=(run oxford-weekly --config "${config_path}")
+  if [ "${debug_mode}" = true ]; then
+    command_args+=(--debug)
+  fi
+
+  if ! "${uv_bin}" "${command_args[@]}"; then
     echo "Failed: ${config_path}" >&2
     failed_configs+=("${config_path}")
   fi

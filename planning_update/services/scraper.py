@@ -518,9 +518,4 @@ def fetch_applications_for_query(
     *, query: PlanningQuery, debug: bool, actual_week: str | None = None
 ) -> tuple[list[Application], str | None]:
     """Fetch applications plus the actual selected week when available."""
-    if debug:
-        return (
-            fetch_latest_applications_cached(query, selected_week=actual_week),
-            actual_week,
-        )
     return fetch_latest_applications(query, selected_week=actual_week)

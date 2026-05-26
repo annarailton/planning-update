@@ -539,16 +539,30 @@ def test_fetch_latest_applications_cached_reuses_saved_results(
     assert fetch_calls == 1
 
 
-def test_fetch_applications_for_query_with_supplied_week_reuses_cached_results_in_debug_mode(
-    application_factory: Callable[..., Application], monkeypatch, tmp_path
+def test_fetch_applications_for_query_with_supplied_week_uses_normal_fetch_in_debug_mode(
+    application_factory: Callable[..., Application], monkeypatch
 ) -> None:
-    """Debug runs should reuse cached results and return the already-resolved week."""
+    """Debug runs should only affect output/email behavior, not query fetching."""
     query = PlanningQuery(status_mode="validated")
-    cached_applications = [application_factory()]
+    fetched_applications = [application_factory()]
+    seen_selected_weeks: list[str | None] = []
+
+    def fake_fetch_latest_applications(
+        _: PlanningQuery, *, selected_week: str | None
+    ) -> tuple[list[Application], str]:
+        seen_selected_weeks.append(selected_week)
+        return fetched_applications, "13 Apr 2026"
+
+    def fail_fetch_latest_applications_cached(*args, **kwargs):
+        raise AssertionError("debug mode should not use the whole-query cache")
 
     monkeypatch.setattr(
-        "planning_update.services.scraper.load_cached_applications",
-        lambda query, *, cache_dir: cached_applications,
+        "planning_update.services.scraper.fetch_latest_applications",
+        fake_fetch_latest_applications,
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_latest_applications_cached",
+        fail_fetch_latest_applications_cached,
     )
 
     applications, week = fetch_applications_for_query(
@@ -557,8 +571,9 @@ def test_fetch_applications_for_query_with_supplied_week_reuses_cached_results_i
         actual_week="13 Apr 2026",
     )
 
-    assert applications == cached_applications
+    assert applications == fetched_applications
     assert week == "13 Apr 2026"
+    assert seen_selected_weeks == ["13 Apr 2026"]
 
 
 def test_fetch_latest_applications_enriches_keyword_matches(

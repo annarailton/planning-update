@@ -6,6 +6,7 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
 configs_dir="${repo_root}/configs"
+email_logs_dir="${repo_root}/email_logs"
 env_file="${repo_root}/.env"
 uv_bin="/opt/homebrew/bin/uv"
 
@@ -38,7 +39,44 @@ fi
 
 cd "${repo_root}"
 
+today_slug="$(date +%Y-%m-%d)"
+failed_configs=()
+
+# Sent emails are logged as timestamped HTML files with the config stem at the
+# end. Use those logs as a restart marker so rerunning the script later in the
+# day does not email the same recipient twice.
+has_email_log_for_today() {
+  local config_path="$1"
+  local config_name
+  local config_stem
+  local config_slug
+
+  config_name="$(basename "${config_path}")"
+  config_stem="${config_name%.toml}"
+  # Keep this in sync with safe_filename_part() in email_sender.py.
+  config_slug="$(printf '%s' "${config_stem}" | sed -E 's/[^A-Za-z0-9._-]+/_/g; s/^[._-]+//; s/[._-]+$//')"
+  if [ -z "${config_slug}" ]; then
+    config_slug="config"
+  fi
+
+  compgen -G "${email_logs_dir}/${today_slug}T*_${config_slug}.html" > /dev/null
+}
+
 for config_path in "${config_paths[@]}"; do
+  if has_email_log_for_today "${config_path}"; then
+    echo "Skipping ${config_path}; email log already exists for ${today_slug}"
+    continue
+  fi
+
   echo "Running oxford-weekly for ${config_path}"
-  "${uv_bin}" run oxford-weekly --config "${config_path}"
+  if ! "${uv_bin}" run oxford-weekly --config "${config_path}"; then
+    echo "Failed: ${config_path}" >&2
+    failed_configs+=("${config_path}")
+  fi
 done
+
+if [ "${#failed_configs[@]}" -gt 0 ]; then
+  echo "Failed configs:" >&2
+  printf '  %s\n' "${failed_configs[@]}" >&2
+  exit 1
+fi

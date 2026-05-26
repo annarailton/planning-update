@@ -407,6 +407,39 @@ def collect_result_applications(
     if week is None:
         _, weeks = fetch_form(session)
         week = query.selected_week(weeks)
+
+    applications = fetch_result_applications_for_week(
+        session,
+        query=query,
+        cache_dir=cache_dir,
+        week=week,
+    )
+    return applications, week
+
+
+def previous_available_week(
+    available_weeks: list[str], selected_week: str
+) -> str | None:
+    """Return the week before the selected weekly-list option when available."""
+    try:
+        selected_week_index = available_weeks.index(selected_week)
+    except ValueError:
+        return None
+
+    previous_week_index = selected_week_index + 1
+    if previous_week_index >= len(available_weeks):
+        return None
+    return available_weeks[previous_week_index]
+
+
+def fetch_result_applications_for_week(
+    session: requests.Session,
+    *,
+    query: PlanningQuery,
+    cache_dir: Path,
+    week: str,
+) -> list[Application]:
+    """Collect shallow weekly-list applications for a single all-location week."""
     weekly_list_query = PlanningQuery(
         requested_week=week,
         status_mode=query.status_mode,
@@ -417,12 +450,17 @@ def collect_result_applications(
         cache_dir=cache_dir,
     )
     if cached_applications is not None:
-        logger.info(
-            "Cache hit: weekly results for %s (%s)",
-            week,
-            query.status_mode,
-        )
-        return cached_applications, week
+        if query.status_mode == "decided" and not cached_applications:
+            # The most recent "decided" weekly list is often empty so we want
+            # to avoid reusing an empty cache for that case.
+            logger.info("Ignoring empty decided weekly cache for %s", week)
+        else:
+            logger.info(
+                "Cache hit: weekly results for %s (%s)",
+                week,
+                query.status_mode,
+            )
+            return cached_applications
 
     csrf_token, _ = fetch_form(session)
 
@@ -436,13 +474,37 @@ def collect_result_applications(
     for pagination_url in extract_pagination_urls(html, page_url):
         next_html, next_page_url = fetch_page(session, pagination_url)
         applications.extend(extract_applications(next_html, week, next_page_url))
-    save_cached_weekly_results(
-        weekly_list_query,
+    if applications or query.status_mode != "decided":
+        save_cached_weekly_results(
+            weekly_list_query,
+            applications,
+            week=week,
+            cache_dir=cache_dir,
+        )
+    else:
+        logger.info(
+            "Skipping empty decided weekly cache write for %s",
+            week,
+        )
+    return applications
+
+
+def filter_applications_for_query(
+    session: requests.Session,
+    applications: list[Application],
+    *,
+    query: PlanningQuery,
+    cache_dir: Path,
+) -> list[Application]:
+    """Apply user-facing query filters to a weekly-list application pool."""
+    applications = filter_applications_by_keywords(applications, query=query)
+    applications = filter_applications_by_major(
+        session,
         applications,
-        week=week,
+        query=query,
         cache_dir=cache_dir,
     )
-    return applications, week
+    return filter_applications_by_ward_distance(applications, query=query)
 
 
 def fetch_latest_applications(
@@ -471,14 +533,37 @@ def fetch_latest_applications(
         cache_dir=cache_dir,
         selected_week=selected_week,
     )
-    applications = filter_applications_by_keywords(applications, query=query)
-    applications = filter_applications_by_major(
+    applications = filter_applications_for_query(
         session,
         applications,
         query=query,
         cache_dir=cache_dir,
     )
-    applications = filter_applications_by_ward_distance(applications, query=query)
+    if (
+        query.status_mode == "decided"
+        and query.requested_week is None
+        and not applications
+    ):
+        _, available_weeks = fetch_form(session)
+        previous_week = previous_available_week(available_weeks, week)
+        if previous_week is not None:
+            logger.info(
+                "No matching decided applications for %s; checking previous weekly list %s",
+                week,
+                previous_week,
+            )
+            applications, week = collect_result_applications(
+                session,
+                query=query,
+                cache_dir=cache_dir,
+                selected_week=previous_week,
+            )
+            applications = filter_applications_for_query(
+                session,
+                applications,
+                query=query,
+                cache_dir=cache_dir,
+            )
     return (
         [
             enrich_application(

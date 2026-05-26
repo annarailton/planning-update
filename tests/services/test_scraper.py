@@ -511,6 +511,159 @@ def test_collect_result_applications_fetches_the_whole_weekly_list(
     }
 
 
+def test_fetch_latest_applications_falls_back_to_previous_week_when_decided_filters_empty(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
+) -> None:
+    """Default decided searches should fall back when query filters remove latest results."""
+    collected_weeks: list[str | None] = []
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_form",
+        lambda session: ("csrf-token", ["25 May 2026", "18 May 2026"]),
+    )
+
+    def fake_collect_result_applications(
+        session: requests.Session,
+        *,
+        query: PlanningQuery,
+        cache_dir,
+        selected_week: str | None,
+    ) -> tuple[list[Application], str]:
+        collected_weeks.append(selected_week)
+        if selected_week == "25 May 2026":
+            return (
+                [application_factory(proposal="Tree works", decided="Mon 25 May 2026")],
+                "25 May 2026",
+            )
+        return (
+            [
+                application_factory(
+                    application_ref={"value": "26/00836/CPU"},
+                    proposal="Certificate for solar panels",
+                    decided="Mon 18 May 2026",
+                )
+            ],
+            "18 May 2026",
+        )
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.collect_result_applications",
+        fake_collect_result_applications,
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.enrich_application",
+        lambda session, application, *, query, cache_dir: application,
+    )
+
+    applications, week = fetch_latest_applications(
+        PlanningQuery(keywords=["solar panels"], status_mode="decided"),
+        cache_dir=tmp_path,
+        selected_week="25 May 2026",
+    )
+
+    assert [application.application_ref.value for application in applications] == [
+        "26/00836/CPU"
+    ]
+    assert week == "18 May 2026"
+    assert collected_weeks == ["25 May 2026", "18 May 2026"]
+
+
+def test_collect_result_applications_refreshes_empty_decided_weekly_cache(
+    application_factory: Callable[..., Application], monkeypatch, tmp_path
+) -> None:
+    """Empty decided weekly-list caches should not mask later live results."""
+    fetched_weeks: list[str] = []
+    week = "18 May 2026"
+    weekly_query = PlanningQuery(requested_week=week, status_mode="decided")
+
+    save_cached_weekly_results(weekly_query, [], week=week, cache_dir=tmp_path)
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_form",
+        lambda session: ("csrf-token", ["25 May 2026", "18 May 2026"]),
+    )
+
+    def fake_fetch_results_page(
+        session: requests.Session,
+        *,
+        query: PlanningQuery,
+        csrf_token: str,
+        week: str,
+    ) -> tuple[str, str]:
+        fetched_weeks.append(week)
+        return week, "https://example.com/results"
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_results_page",
+        fake_fetch_results_page,
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_applications",
+        lambda html, week, page_url: [application_factory(decided="Mon 18 May 2026")],
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_pagination_urls",
+        lambda html, page_url: [],
+    )
+
+    applications, selected_week = collect_result_applications(
+        requests.Session(),
+        query=PlanningQuery(status_mode="decided"),
+        cache_dir=tmp_path,
+        selected_week=week,
+    )
+
+    assert applications == [application_factory(decided="Mon 18 May 2026")]
+    assert selected_week == week
+    assert fetched_weeks == [week]
+
+
+def test_collect_result_applications_keeps_explicit_empty_decided_week(
+    monkeypatch, tmp_path
+) -> None:
+    """Explicit week selections should not fall back to a different decided week."""
+    fetched_weeks: list[str] = []
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_form",
+        lambda session: ("csrf-token", ["25 May 2026", "18 May 2026"]),
+    )
+
+    def fake_fetch_results_page(
+        session: requests.Session,
+        *,
+        query: PlanningQuery,
+        csrf_token: str,
+        week: str,
+    ) -> tuple[str, str]:
+        fetched_weeks.append(week)
+        return week, "https://example.com/results"
+
+    monkeypatch.setattr(
+        "planning_update.services.scraper.fetch_results_page",
+        fake_fetch_results_page,
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_applications",
+        lambda html, week, page_url: [],
+    )
+    monkeypatch.setattr(
+        "planning_update.services.scraper.extract_pagination_urls",
+        lambda html, page_url: [],
+    )
+
+    applications, week = collect_result_applications(
+        requests.Session(),
+        query=PlanningQuery(requested_week="25 May 2026", status_mode="decided"),
+        cache_dir=tmp_path,
+        selected_week="25 May 2026",
+    )
+
+    assert applications == []
+    assert week == "25 May 2026"
+    assert fetched_weeks == ["25 May 2026"]
+
+
 def test_fetch_latest_applications_cached_reuses_saved_results(
     application_factory: Callable[..., Application], monkeypatch, tmp_path
 ) -> None:

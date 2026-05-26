@@ -93,7 +93,7 @@ def request_with_backoff(
         (requests.ConnectionError, requests.Timeout),
         max_tries=RETRY_MAX_RETRIES + 1,
         factor=RETRY_INITIAL_BACKOFF_SECONDS,
-        jitter=backoff.full_jitter,
+        jitter=backoff.random_jitter,
         on_backoff=log_backoff,
     )
     # Some responses may have retry-worthy status codes, but we need to
@@ -103,7 +103,7 @@ def request_with_backoff(
         predicate=should_retry_rate_limited_response,
         max_tries=RETRY_MAX_RETRIES + 1,
         factor=RATE_LIMIT_INITIAL_BACKOFF_SECONDS,
-        jitter=backoff.full_jitter,
+        jitter=backoff.random_jitter,
         on_backoff=log_backoff,
     )
     @backoff.on_predicate(
@@ -111,7 +111,7 @@ def request_with_backoff(
         predicate=should_retry_transient_response,
         max_tries=RETRY_MAX_RETRIES + 1,
         factor=RETRY_INITIAL_BACKOFF_SECONDS,
-        jitter=backoff.full_jitter,
+        jitter=backoff.random_jitter,
         on_backoff=log_backoff,
     )
     def send_request() -> requests.Response:
